@@ -156,6 +156,7 @@ public class RPCClientHandler extends ChannelInboundHandlerAdapter {
     private void doWatch(ClientMessage message){
         if(watcher.get()==null){//这里不直接cas是因为cas是一条cpu指令，能省则省。
             Thread t1=new Watcher();
+            t1.setDaemon(true);
             t1.setName("watcher");//事实上可以像waiterQueue一样在成员代码块中初始化
             if(watcher.compareAndSet(null,t1)) t1.start();
         }
