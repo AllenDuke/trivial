@@ -1,6 +1,8 @@
 package com.github.AllenDuke.producerService;
 
 
+import com.github.AllenDuke.exception.ArgNotFoundExecption;
+import com.github.AllenDuke.myThreadPoolService.ThreadPoolService;
 import com.github.AllenDuke.util.YmlUtil;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.buffer.ByteBuf;
@@ -18,6 +20,7 @@ import io.netty.handler.codec.string.StringEncoder;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.Map;
+import java.util.concurrent.ThreadPoolExecutor;
 
 /**
  * @author 杜科
@@ -29,7 +32,7 @@ import java.util.Map;
 public class RPCServer {
 
     //服务实现类所在的包名
-    protected static String packageName;
+    public static String packageName;
 
     //主机地址
     private static String host;
@@ -43,17 +46,42 @@ public class RPCServer {
     //worker数量
     private static int workerSize= 0;//为0将使用默认值：cpu核数*2
 
+    //业务处理器
+    private static RPCServerHandler  serverHandler;
+
+    //业务线程池模型
+    protected static int businessPoolModel=0;//0为不开启，1为使用jdk线程池，2为使用自实现线程池
+
+    //jdk线程池
+    protected static ThreadPoolExecutor executor;
+
+    //自实现线程池
+    protected static ThreadPoolService poolService;
+
+    public static void startServer(ThreadPoolExecutor poolExecutor){
+        executor=poolExecutor;
+        startServer();
+    }
+
+    public static void startServer(ThreadPoolService threadPoolService){
+        poolService=threadPoolService;
+        startServer();
+    }
+
     //启动netty线程组
     public static void startServer() {
         Map<String, Object> map = YmlUtil.getResMap("server");
-        if (!map.containsKey("host")) throw new RuntimeException("myrpc.yml缺少参数host!");
+        if (!map.containsKey("host")) throw new ArgNotFoundExecption("myrpc.yml缺少参数host!");
         host = (String) map.get("host");
-        if (!map.containsKey("port")) throw new RuntimeException("myrpc.yml缺少参数port!");
+        if (!map.containsKey("port")) throw new ArgNotFoundExecption("myrpc.yml缺少参数port!");
         port = (Integer) map.get("port");
-        if (!map.containsKey("packageName")) throw new RuntimeException("myrpc.yml缺少参数packageName!");
+        if (!map.containsKey("packageName")) throw new ArgNotFoundExecption("myrpc.yml缺少参数packageName!");
         packageName = (String) map.get("packageName");
         if(map.containsKey("bossSize")) bossSize= (int) map.get("bossSize");
         if(map.containsKey("workerSize")) workerSize= (int) map.get("workerSize");
+        if(map.containsKey("businessPoolModel")) businessPoolModel= (int) map.get("businessPoolModel");
+        if(businessPoolModel==1&&executor==null) throw new ArgNotFoundExecption("缺少jdk线程池");
+        if(businessPoolModel==2&&poolService==null) throw new ArgNotFoundExecption("缺少自实现线程池");
         new Thread(() -> {//转移阻塞点，使主线程得以返回
             startServer0();
         }).start();
@@ -63,6 +91,7 @@ public class RPCServer {
     private static void startServer0() {
         EventLoopGroup bossGroup = new NioEventLoopGroup(bossSize);
         EventLoopGroup workerGroup = new NioEventLoopGroup(workerSize);
+        serverHandler=new RPCServerHandler();
         try {
             ServerBootstrap serverBootstrap = new ServerBootstrap();
             serverBootstrap.group(bossGroup, workerGroup)
@@ -76,7 +105,7 @@ public class RPCServer {
                                                   false, delimiter));
                                           pipeline.addLast(new StringDecoder());//inbound编码器
                                           pipeline.addLast(new StringEncoder());//outbound解码器
-                                          pipeline.addLast(new RPCServerHandler());//业务处理器
+                                          pipeline.addLast(serverHandler);//业务处理器
                                       }
                                   }
                     );

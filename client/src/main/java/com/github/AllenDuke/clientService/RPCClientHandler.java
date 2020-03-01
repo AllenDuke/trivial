@@ -93,7 +93,7 @@ public class RPCClientHandler extends ChannelInboundHandlerAdapter {
      */
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
-        log.info("客户端收到信息："+msg+"，准备解码，返回结果");
+        log.info("收到信息："+msg+"，准备解码，返回结果");
         ServerMessage serverMessage=null;
         try{
             serverMessage=JSON.parseObject((String) msg, ServerMessage.class);
@@ -167,7 +167,7 @@ public class RPCClientHandler extends ChannelInboundHandlerAdapter {
     private class Watcher extends Thread{
         @Override
         public void run() {
-            while(!RPCClient.shutdown){//每次循环检查是否已经关闭
+            while(!RPCClient.shutdown){//每次循环检查是否已经关闭，同样会让出cpu
                 try {
                     CountDownNode head=waiterQueue.take();//阻塞获取头
                     if(System.currentTimeMillis()-head.createTime <RPCClient.timeout)

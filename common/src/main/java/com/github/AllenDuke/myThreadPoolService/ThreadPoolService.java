@@ -1,5 +1,7 @@
 package com.github.AllenDuke.myThreadPoolService;
 
+import lombok.extern.slf4j.Slf4j;
+
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -17,6 +19,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * @contact AllenDuke@163.com
  * @since 2019/11/30
  */
+@Slf4j
 public class ThreadPoolService {
     private int coreSize = 2;//核心线程数
     private int maxSize = 4;//最大线程数
@@ -117,7 +120,7 @@ public class ThreadPoolService {
         //如果+1后仍在容量内，则添加成功
         if (queueSize.incrementAndGet() <= queueCapacity) {
             taskQueue.add(task);
-            System.out.println("加入队列任务——" + task);
+            log.info("任务 "+task+" 加入队列");
             return true;
         }
         //+1后超出容量，则添加失败，需要把-1
@@ -151,7 +154,7 @@ public class ThreadPoolService {
     //关闭线程池，拒绝任务，线程消费完任务队列后消亡
     public void shutDown() {
         isShutDown = true;
-        System.out.println("线程池关闭");
+        log.info("线程池关闭");
     }
 
     /**
@@ -191,13 +194,13 @@ public class ThreadPoolService {
             while (!isShutDown || !taskQueue.isEmpty()) {
                 if (task != null) {
                     task.run();
-                    System.out.println(Thread.currentThread().getName() + "完成任务——" + task);
+                    log.info(Thread.currentThread().getName() + "完成任务——" + task);
                     task = null;
                 }
                 //这个判断条件是很苛刻的
                 if(!isFree&&task==null) pullTask();//二者都用volatile遵循happens-bofore,防止主线程修改到一半就去拉取
             }
-            System.out.println(Thread.currentThread().getName() + "消亡");
+            log.info(Thread.currentThread().getName() + "消亡");
         }
     }
 
@@ -258,14 +261,14 @@ public class ThreadPoolService {
             while ((!isShutDown || !taskQueue.isEmpty()) && (!isFree || System.currentTimeMillis() - beginFree < keepAlive)) {
                 if (task != null) {
                     task.run();
-                    System.out.println(Thread.currentThread().getName() + "完成任务——" + task);
+                    log.info(Thread.currentThread().getName() + "完成任务——" + task);
                     task = null;
                 }
                 if(!isFree&&task==null) pullTask();
             }
             curSize.decrementAndGet();
             freeNonCorePool.remove(this);//把消亡的线程从队列中移除，消亡后的线程不为null，不会被上面的executrByNonCore感知到，进而造成任务丢失
-            System.out.println(Thread.currentThread().getName() + "消亡");
+            log.info(Thread.currentThread().getName() + "消亡");
         }
     }
 

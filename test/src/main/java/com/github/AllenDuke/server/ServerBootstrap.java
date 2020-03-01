@@ -1,6 +1,7 @@
 package com.github.AllenDuke.server;
 
 
+import com.github.AllenDuke.myThreadPoolService.ThreadPoolService;
 import com.github.AllenDuke.producerService.RPCServer;
 
 /**
@@ -13,6 +14,6 @@ public class ServerBootstrap {
 
     public static void main(String[] args) {
 
-        RPCServer.startServer();
+        RPCServer.startServer(new ThreadPoolService());
     }
 }
