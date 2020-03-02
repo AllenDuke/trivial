@@ -2,6 +2,7 @@ package com.github.AllenDuke.clientService;
 
 
 import com.github.AllenDuke.dto.ClientMessage;
+import com.github.AllenDuke.exception.ArgNotFoundExecption;
 import com.github.AllenDuke.util.YmlUtil;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.buffer.ByteBuf;
@@ -71,9 +72,9 @@ public class RPCClient {
         if (isInit) return;
         isInit = true;
         Map<String, Object> map = YmlUtil.getResMap("client");
-        if (!map.containsKey("serverHost")) throw new RuntimeException("myrpc.yml缺少参数serverHost!");
+        if (!map.containsKey("serverHost")) throw new ArgNotFoundExecption("rpc.yml缺少参数serverHost!");
         serverHost = (String) map.get("serverHost");
-        if (!map.containsKey("serverPort")) throw new RuntimeException("myrpc.yml缺少参数serverPort!");
+        if (!map.containsKey("serverPort")) throw new ArgNotFoundExecption("rpc.yml缺少参数serverPort!");
         serverPort = (Integer) map.get("serverPort");
         if (map.containsKey("timeout")) timeout = new Long((int) map.get("timeout"));
         if(map.containsKey("retryNum")) retryNum=(int) map.get("retryNum");

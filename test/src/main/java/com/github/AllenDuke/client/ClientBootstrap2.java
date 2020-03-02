@@ -10,20 +10,14 @@ import com.github.AllenDuke.server.Calculator;
  * @contact AllenDuke@163.com
  * @since 2020/2/11
  */
-public class ClientBootstrap {
+public class ClientBootstrap2 {
 
 
     public static void main(String[] args) throws Exception {
 
         RPCClient.init();
         Calculator calculator = (Calculator) RPCClient.getServiceImpl(Calculator.class);
-        new Thread(()->{
-            calculator.add(1, "2");
-            calculator.multipy(3, 6);
-        }).start();
-        new Thread(()->{
-            calculator.multipy(2, 7);
-        }).start();
+        calculator.multipy(5,9);
         //RPCClient.shutdown();
 
     }

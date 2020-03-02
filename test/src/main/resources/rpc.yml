@@ -1,14 +1,14 @@
 client:
   name: client1
   serverHost: 127.0.0.1
-  serverPort: 7000
+  serverPort: 8000
   timeout: 2000 #毫秒
   retryNum: 2
   #workerSize: 4
 server:
   name: server1
   host: 127.0.0.1
-  port: 7000
+  port: 8000
   packageName: com.github.AllenDuke.serviceImpl
   #bossSize: 1
   #workerSize: 8

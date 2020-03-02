@@ -46,9 +46,6 @@ public class RPCServer {
     //worker数量
     private static int workerSize= 0;//为0将使用默认值：cpu核数*2
 
-    //业务处理器
-    private static RPCServerHandler  serverHandler;
-
     //业务线程池模型
     protected static int businessPoolModel=0;//0为不开启，1为使用jdk线程池，2为使用自实现线程池
 
@@ -71,11 +68,11 @@ public class RPCServer {
     //启动netty线程组
     public static void startServer() {
         Map<String, Object> map = YmlUtil.getResMap("server");
-        if (!map.containsKey("host")) throw new ArgNotFoundExecption("myrpc.yml缺少参数host!");
+        if (!map.containsKey("host")) throw new ArgNotFoundExecption("rpc.yml缺少参数host!");
         host = (String) map.get("host");
-        if (!map.containsKey("port")) throw new ArgNotFoundExecption("myrpc.yml缺少参数port!");
+        if (!map.containsKey("port")) throw new ArgNotFoundExecption("rpc.yml缺少参数port!");
         port = (Integer) map.get("port");
-        if (!map.containsKey("packageName")) throw new ArgNotFoundExecption("myrpc.yml缺少参数packageName!");
+        if (!map.containsKey("packageName")) throw new ArgNotFoundExecption("rpc.yml缺少参数packageName!");
         packageName = (String) map.get("packageName");
         if(map.containsKey("bossSize")) bossSize= (int) map.get("bossSize");
         if(map.containsKey("workerSize")) workerSize= (int) map.get("workerSize");
@@ -91,12 +88,13 @@ public class RPCServer {
     private static void startServer0() {
         EventLoopGroup bossGroup = new NioEventLoopGroup(bossSize);
         EventLoopGroup workerGroup = new NioEventLoopGroup(workerSize);
-        serverHandler=new RPCServerHandler();
         try {
             ServerBootstrap serverBootstrap = new ServerBootstrap();
             serverBootstrap.group(bossGroup, workerGroup)
                     .channel(NioServerSocketChannel.class)
-                    .childHandler(new ChannelInitializer<SocketChannel>() {
+                    .childHandler(//作用于workerGroup
+                            new ChannelInitializer<SocketChannel>() {//初始化器也算是一个handler,在pipeline中
+                                //初始化socketChannel（每一个都包含一个pipeline）
                                       @Override
                                       protected void initChannel(SocketChannel ch) throws Exception {
                                           ChannelPipeline pipeline = ch.pipeline();
@@ -105,12 +103,12 @@ public class RPCServer {
                                                   false, delimiter));
                                           pipeline.addLast(new StringDecoder());//inbound编码器
                                           pipeline.addLast(new StringEncoder());//outbound解码器
-                                          pipeline.addLast(serverHandler);//业务处理器
+                                          pipeline.addLast(new RPCServerHandler());//业务处理器
                                       }
                                   }
                     );
             ChannelFuture channelFuture = serverBootstrap.bind(host, port).sync();
-            log.info("服务器开始提供服务~~");
+            log.info("server is ready! ");
             channelFuture.channel().closeFuture().sync();//同步方法，直到有结果才往下执行
         } catch (Exception e) {
             e.printStackTrace();

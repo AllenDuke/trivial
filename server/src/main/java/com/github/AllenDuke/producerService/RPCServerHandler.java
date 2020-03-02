@@ -24,11 +24,11 @@ import java.util.concurrent.ThreadPoolExecutor;
 @Slf4j
 public class RPCServerHandler extends ChannelInboundHandlerAdapter {
 
-    private InvokeHandler invokeHandler=new InvokeHandler();
+    private static final InvokeHandler invokeHandler=new InvokeHandler();
 
-    private ThreadPoolExecutor executor=RPCServer.executor;
+    private static final ThreadPoolExecutor executor=RPCServer.executor;
 
-    private ThreadPoolService poolService=RPCServer.poolService;
+    private static final ThreadPoolService poolService=RPCServer.poolService;
 
 
     /**

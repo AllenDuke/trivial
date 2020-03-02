@@ -2,7 +2,7 @@ package com.github.AllenDuke.exception;
 
 /**
  * @author 杜科
- * @description
+ * @description 方法缺失异常
  * @contact AllenDuke@163.com
  * @since 2020/3/1
  */
