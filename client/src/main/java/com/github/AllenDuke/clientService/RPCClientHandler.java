@@ -3,6 +3,7 @@ package com.github.AllenDuke.clientService;
 import com.alibaba.fastjson.JSON;
 import com.github.AllenDuke.dto.ClientMessage;
 import com.github.AllenDuke.dto.ServerMessage;
+import com.github.AllenDuke.event.TimeOutEvent;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import lombok.extern.slf4j.Slf4j;
@@ -43,33 +44,8 @@ public class RPCClientHandler extends ChannelInboundHandlerAdapter {
     //各caller的当前条用次数，park后加入，unpark后删除
     private final Map<Long,Long> countMap=new HashMap<>();
 
-    //记录每个caller发起第count次调用的时间，用作超时
-    protected static class CountDownNode{
-        ClientMessage message;//应尽量缩减message的信息，避免不必要的传输(后面将加入超时时长，供服务提供方使用)
-        long createTime;
-        int retryNum;
-
-        public CountDownNode(ClientMessage message, long createTime) {
-            this.message=message;
-            this.createTime = createTime;
-            this.retryNum=RPCClient.retryNum;
-        }
-
-        @Override
-        public int hashCode() {
-            return (int) message.getCallerId()+(int) message.getCount();
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            CountDownNode t=(CountDownNode)obj;
-            return this.message.getCallerId()==t.message.getCallerId()
-                    &&this.message.getCount()==t.message.getCount();
-        }
-    }
-
     //超时观察队列
-    private BlockingQueue<CountDownNode> waiterQueue;
+    private BlockingQueue<TimeOutEvent> waiterQueue;
     {if(RPCClient.timeout!=-1)waiterQueue=new LinkedBlockingQueue<>();}
 
     //超时观察者，原子变量避免并发创建
@@ -133,25 +109,18 @@ public class RPCClientHandler extends ChannelInboundHandlerAdapter {
         long callerId=clientMessage.getCallerId();
         waiterMap.put(callerId,Thread.currentThread());//caller加入map当中
         countMap.put(callerId,clientMessage.getCount());
-        if(RPCClient.timeout!=-1){
-            doWatch(clientMessage);
-        }
+        if(RPCClient.timeout!=-1) doWatch(clientMessage);//进行超时观察
         context.writeAndFlush(JSON.toJSONString(clientMessage));//加到任务队列，netty线程发送json文本
         log.info("线程——"+callerId+"，要发送信息"+clientMessage);
         LockSupport.park();
     }
 
     /**
-     * @description: 对caller的第count次调用进行超时观察，每次阻塞地拉取队头，
-     * 1.若超时：
-     * （1）.检查是否已经成功返回，
-     * （2）.检查是否可以重试，若可以则重发信息（仍然是原来的信息），
-     * （3）.重试仍超时，unpark相应的caller，将返回超时提示的字符串（caller要注意ClassCastException）
-     * 2.若没有超时，重新加到队尾
-     * @param message
+     * @description: 对要发送的信息生成一个事件，进行超时观察
+     * @param message 要发送的信息
      * @return: void
      * @author: 杜科
-     * @date: 2020/2/28
+     * @date: 2020/3/4
      */
     private void doWatch(ClientMessage message){
         if(watcher.get()==null){//这里不直接cas是因为cas是一条cpu指令，能省则省。
@@ -160,38 +129,26 @@ public class RPCClientHandler extends ChannelInboundHandlerAdapter {
             t1.setName("watcher");//事实上可以像waiterQueue一样在成员代码块中初始化
             if(watcher.compareAndSet(null,t1)) t1.start();
         }
-        waiterQueue.add(
-                new CountDownNode(message,System.currentTimeMillis()));//加入超时观察队列
+        waiterQueue.add(new TimeOutEvent(message,System.currentTimeMillis()));//加入超时观察队列
     }
 
+    //超时观察线程
     private class Watcher extends Thread{
         @Override
         public void run() {
             while(!RPCClient.shutdown){//每次循环检查是否已经关闭，同样会让出cpu
                 try {
-                    CountDownNode head=waiterQueue.take();//阻塞获取头
-                    if(System.currentTimeMillis()-head.createTime <RPCClient.timeout)
+                    TimeOutEvent head=waiterQueue.take();//阻塞获取头
+                    if(System.currentTimeMillis()-head.getCreateTime() <RPCClient.timeout)
                         waiterQueue.add(head);//如果没有超时再加回到队尾
                     else{//如果超时了
-                        long callerId=head.message.getCallerId();
-                        long count=head.message.getCount();
+                        long callerId=head.getMessage().getCallerId();
+                        long count=head.getMessage().getCount();
                         if(countMap.get(callerId)==null
                                 || countMap.get(callerId)!=count) continue;//实际上已经成功返回
-                        if(head.retryNum>0){
-                            head.retryNum--;
-                            log.error("线程——"+callerId+" 第 "+count +" 次调用超时，即将进行第 "
-                                    +(RPCClient.retryNum-head.retryNum)+" 次重试");
-                            context.writeAndFlush(head.message);//重发信息
-                            continue;
-                        }
-                        resultMap.put(callerId,"调用超时");
-                        log.error("线程—— "+callerId+" 第 "+count
-                                +"次调用超时，已重试 "+RPCClient.retryNum+" 次，即将返回超时提示");
-                        LockSupport.unpark(waiterMap.get(callerId));
-                        waiterMap.remove(callerId);
-                        countMap.remove(callerId);
+                       RPCClient.listener.handle(head);//发生超时，调用注册的监听器的handle方法
                     }
-                } catch (InterruptedException e) {
+                } catch (Exception e) {//cathch包含可能在listen.handle抛出的异常
                     e.printStackTrace();
                 }
             }
@@ -212,6 +169,21 @@ public class RPCClientHandler extends ChannelInboundHandlerAdapter {
     }
 
     //用于在主线程关闭netty线程组时，主线程往超时观察队列中加入一个节点，让超时观察者苏醒一次去检查关闭标志，进而结束
-    protected BlockingQueue<CountDownNode> getWaiterQueue(){return this.waiterQueue;}
+    protected BlockingQueue<TimeOutEvent> getWaiterQueue(){return this.waiterQueue;}
 
+    public ChannelHandlerContext getContext() {
+        return context;
+    }
+
+    public Map<Long, Thread> getWaiterMap() {
+        return waiterMap;
+    }
+
+    public Map<Long, Object> getResultMap() {
+        return resultMap;
+    }
+
+    public Map<Long, Long> getCountMap() {
+        return countMap;
+    }
 }

@@ -24,7 +24,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 
 /**
  * @author 杜科
- * @description rpc服务提供者，要求源码中resource文件夹中有myrpc.yml
+ * @description rpc服务提供者，要求源码中resource文件夹中有rpc.yml
  * @contact AllenDuke@163.com
  * @since 2020/2/11
  */
@@ -91,18 +91,20 @@ public class RPCServer {
         try {
             ServerBootstrap serverBootstrap = new ServerBootstrap();
             serverBootstrap.group(bossGroup, workerGroup)
-                    .channel(NioServerSocketChannel.class)
+                    .channel(NioServerSocketChannel.class)//水平触发，EpollServerSocketChannel边缘触发
                     .childHandler(//作用于workerGroup
                             new ChannelInitializer<SocketChannel>() {//初始化器也算是一个handler,在pipeline中
-                                //初始化socketChannel（每一个都包含一个pipeline）
+                                //初始化socketChannel，完成后从pipeline中移除
                                       @Override
                                       protected void initChannel(SocketChannel ch) throws Exception {
                                           ChannelPipeline pipeline = ch.pipeline();
                                           ByteBuf delimiter = Unpooled.copiedBuffer("}".getBytes());//“}”为分隔符
                                           pipeline.addLast(new DelimiterBasedFrameDecoder(2048,
                                                   false, delimiter));
-                                          pipeline.addLast(new StringDecoder());//inbound编码器
-                                          pipeline.addLast(new StringEncoder());//outbound解码器
+                                          pipeline.addLast(new StringEncoder());//outbound编码器
+                                          //解码器每次处理一个ClientMessage，然后往后传
+                                          //因为是水平触发，如果有未读完的数据，下一次select该channel仍然会被选取
+                                          pipeline.addLast(new StringDecoder());//inbound解码器
                                           pipeline.addLast(new RPCServerHandler());//业务处理器
                                       }
                                   }

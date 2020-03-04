@@ -15,7 +15,7 @@ public class ClientBootstrap2 {
 
     public static void main(String[] args) throws Exception {
 
-        RPCClient.init();
+        RPCClient.init(new MyTimeOutListener());
         Calculator calculator = (Calculator) RPCClient.getServiceImpl(Calculator.class);
         calculator.multipy(5,9);
         //RPCClient.shutdown();

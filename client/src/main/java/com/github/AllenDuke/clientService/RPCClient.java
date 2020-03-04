@@ -2,7 +2,10 @@ package com.github.AllenDuke.clientService;
 
 
 import com.github.AllenDuke.dto.ClientMessage;
+import com.github.AllenDuke.event.TimeOutEvent;
 import com.github.AllenDuke.exception.ArgNotFoundExecption;
+import com.github.AllenDuke.listener.DefaultTimeOutListener;
+import com.github.AllenDuke.listener.TimeOutListener;
 import com.github.AllenDuke.util.YmlUtil;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.buffer.ByteBuf;
@@ -48,7 +51,7 @@ public class RPCClient {
     protected static long timeout = -1;
 
     //超时重试次数
-    protected static int retryNum=0;
+    public static int retryNum=0;
 
     //netty线程数
     private static int workerSize= 0;//为0将使用默认值：cpu核数*2
@@ -57,13 +60,30 @@ public class RPCClient {
     private static NioEventLoopGroup group;
 
     //业务处理器
-    private static RPCClientHandler clientHandler;
+    public static RPCClientHandler clientHandler;
+
+    //超时监听者
+    protected static TimeOutListener listener;
+
+    /**
+     * @description: 注册超时监听器，当发生超时时，将调用监听器里的相关方法
+     * @param timeOutListener 超时监听器
+     * @return: void
+     * @author: 杜科
+     * @date: 2020/3/4
+     */
+    public synchronized static void init(TimeOutListener timeOutListener) {
+        if(isInit) return;
+        listener= timeOutListener;
+        init();
+    }
 
     /**
      * @param
      * @description: 用户在使用前要先初始化，否则将抛异常。
-     * 初始化时，将解析myrpc.yml，设置相应的参数，至少包含serverHost,serverPort
-     * synchronized防止并发初始化
+     * 初始化时，将解析rpc.yml，设置相应的参数，至少包含serverHost,serverPort
+     * synchronized防止并发初始化，这里不用volatile和dubble-check是因为用户应该尽量保持只有一个线程在初始化，
+     * 这样为了不增加编码复杂度，使用synchronized的花费也不高，较为直观。
      * @return: void
      * @author: 杜科
      * @date: 2020/2/28
@@ -78,8 +98,9 @@ public class RPCClient {
         serverPort = (Integer) map.get("serverPort");
         if (map.containsKey("timeout")) timeout = new Long((int) map.get("timeout"));
         if(map.containsKey("retryNum")) retryNum=(int) map.get("retryNum");
-        clientHandler = new RPCClientHandler();
         if(map.containsKey("workerSize")) workerSize= (int) map.get("workerSize");
+        clientHandler = new RPCClientHandler();
+        if(timeout!=-1&&listener==null) listener=new DefaultTimeOutListener();//设置默认监听器(注意初始化顺序)
         group = new NioEventLoopGroup(workerSize);
         try {
             Bootstrap bootstrap = new Bootstrap();
@@ -94,8 +115,8 @@ public class RPCClient {
                                     ByteBuf delimiter = Unpooled.copiedBuffer("}".getBytes());//“}”为分隔符
                                     pipeline.addLast(new DelimiterBasedFrameDecoder(2048,
                                             false, delimiter));//不去除分割符
-                                    pipeline.addLast(new StringDecoder());//inbound编码器
-                                    pipeline.addLast(new StringEncoder());//outbound解码器
+                                    pipeline.addLast(new StringEncoder());//outbound编码器
+                                    pipeline.addLast(new StringDecoder());//inbound解码器
                                     pipeline.addLast(clientHandler);//业务处理器
                                 }
                             }
@@ -142,7 +163,7 @@ public class RPCClient {
         shutdown=true;//按netty线程组的关闭策略先让其完成相关工作，再去检查超时观察者
         if(timeout!=-1){//结束超时观察者
             clientHandler.getWaiterQueue()//传入当前时间是为了在最后一次检查中不误报超时信息
-                    .add(new RPCClientHandler.CountDownNode(new ClientMessage(),System.currentTimeMillis()));
+                    .add(new TimeOutEvent(new ClientMessage(),System.currentTimeMillis()));
         }
     }
 }
