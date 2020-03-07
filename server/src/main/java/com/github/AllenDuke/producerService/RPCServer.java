@@ -99,11 +99,10 @@ public class RPCServer {
                                       protected void initChannel(SocketChannel ch) throws Exception {
                                           ChannelPipeline pipeline = ch.pipeline();
                                           ByteBuf delimiter = Unpooled.copiedBuffer("}".getBytes());//“}”为分隔符
+                                          //解码器循环解码，每解析出一个就往后传播
                                           pipeline.addLast(new DelimiterBasedFrameDecoder(2048,
                                                   false, delimiter));
                                           pipeline.addLast(new StringEncoder());//outbound编码器
-                                          //解码器每次处理一个ClientMessage，然后往后传
-                                          //因为是水平触发，如果有未读完的数据，下一次select该channel仍然会被选取
                                           pipeline.addLast(new StringDecoder());//inbound解码器
                                           pipeline.addLast(new RPCServerHandler());//业务处理器
                                       }

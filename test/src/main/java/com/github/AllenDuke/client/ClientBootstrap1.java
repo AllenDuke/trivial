@@ -12,7 +12,6 @@ import com.github.AllenDuke.server.Calculator;
  */
 public class ClientBootstrap1 {
 
-
     public static void main(String[] args) throws Exception {
 
         RPCClient.init();
