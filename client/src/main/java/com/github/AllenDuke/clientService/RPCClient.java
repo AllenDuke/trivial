@@ -9,7 +9,6 @@ import com.github.AllenDuke.exception.SubscribeFailException;
 import com.github.AllenDuke.listener.DefaultTimeOutListener;
 import com.github.AllenDuke.listener.TimeOutListener;
 import com.github.AllenDuke.util.YmlUtil;
-import io.netty.channel.nio.NioEventLoopGroup;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.zookeeper.CreateMode;
 import org.apache.zookeeper.Watcher;
@@ -51,8 +50,7 @@ public class RPCClient {
     //netty线程数
     private static int workerSize = 0;//为0将使用默认值：cpu核数*2
 
-    //netty线程组
-    private static NioEventLoopGroup group;
+
 
     //业务处理器
     public static RPCClientHandler clientHandler;
@@ -141,7 +139,7 @@ public class RPCClient {
             //多级节点要求父级为persistent
             try {
                 if (event.getState() == Watcher.Event.KeeperState.SyncConnected) {
-                    if (serviceNames != null && serviceNames.keySet() != null)
+                    if (serviceNames != null && serviceNames.keySet() != null)//这是不必要的参数
                         for (String s : serviceNames.keySet()) {
                             if (zooKeeper.exists("/trivial/" + s, null) == null) {
                                 //先创建父级persistent节点
@@ -191,7 +189,7 @@ public class RPCClient {
     }
 
     public static void shutdown() {
-        group.shutdownGracefully();
+        connector.shutDown();
         shutdown = true;//按netty线程组的关闭策略先让其完成相关工作，再去检查超时观察者
         if (timeout != -1) {//结束超时观察者
             clientHandler.getWaiterQueue()//传入当前时间是为了在最后一次检查中不误报超时信息

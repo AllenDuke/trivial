@@ -55,6 +55,7 @@ public class RPCClientHandler extends ChannelInboundHandlerAdapter {
     //与服务器的连接创建后，就会被调用, 这个方法是第一个被调用
     @Override
     public void channelActive(ChannelHandlerContext ctx) throws Exception {
+        log.info(ctx.channel()+" 已连接");
         this.context=ctx;
     }
 
@@ -97,6 +98,13 @@ public class RPCClientHandler extends ChannelInboundHandlerAdapter {
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
         ctx.close();
     }
+
+    @Override
+    public void channelInactive(ChannelHandlerContext ctx) throws Exception {
+        log.error(ctx.channel()+" 连接已断开");
+    }
+
+
 
     /**
      * @description: caller调用后，记录相关信息（waiterMap,countMap等），在此阻塞(超时等待结果)，

@@ -13,10 +13,13 @@ import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.handler.codec.DelimiterBasedFrameDecoder;
 import io.netty.handler.codec.string.StringDecoder;
 import io.netty.handler.codec.string.StringEncoder;
+import lombok.extern.slf4j.Slf4j;
 
 import java.net.InetSocketAddress;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 /**
@@ -25,21 +28,29 @@ import java.util.concurrent.ConcurrentLinkedQueue;
  * @contact AllenDuke@163.com
  * @since 2020/3/10
  */
+@Slf4j
 public class Connector {
 
     //已与某个RPCServer连接的RPCClientHandler，key为服务名称，如Calculator，但是有可能出现下一次要调用HelloService的时候
     //从此map中找不到RPCClient，而事实上Calculaor所在的RPCServer也提供了HelloService的服务，但无法感知到，从而又再次与此
     //服务端再构建了一条连接，这个问题将在下一次更新中解决。
+    //注意为什么不用ConcurrentHashMap，在createAndConnectChannel有解释
     private static final Map<String,RPCClientHandler> connectedHandlerMap=new HashMap<>();
 
     //RPCClientHandler空闲队列(空闲后与原连接断开，进入空闲队列) 并发容器防止并发构建连接
     private static final ConcurrentLinkedQueue<RPCClientHandler> idleHandlerQueue=new ConcurrentLinkedQueue();
+
+    //记录NioEventLoopGroup，用于关闭
+    private static final Set<NioEventLoopGroup> groupSet=new HashSet<>();
 
     //注册中心
     private static final Registry registry =RPCClient.registry;
 
     /**
      * @description: 新建一条NioSocketChannel，连上指定的服务端
+     * 这里避免调用同一个服务的两个线程同时创建两条连接，所以直接使用sychronized，看起来不友好，
+     * 但实际上新建的次数是不多的，因为可以重用空闲的连接。
+     * 这里不把sychronized加到方法头上，是为了尽量减少要同步的区域，尽量让同步在轻量级锁（自旋）上完成，避免升级
      * @param serverAddr 服务端地址，如 127.0.0.1:7000
      * @param serviceName 该服务端提供的服务的名称，如 Calculator
      * @return: void
@@ -71,8 +82,13 @@ public class Connector {
             int splitIndex=serverAddr.indexOf(":");
             String serverHost=serverAddr.substring(0,splitIndex);
             int serverPort=Integer.valueOf(serverAddr.substring(splitIndex+1,serverAddr.length()));
-            bootstrap.connect(serverHost,serverPort).sync();
-            connectedHandlerMap.put(serviceName,clientHandler);//已建立连接
+            synchronized (this){//connector只有一个
+                // synchronized保证可见性，在其内写入的数据对其他线程可见(写回主存，其他线程再从主存中读)，所以可用HashMap
+                if(connectedHandlerMap.containsKey(serviceName)) return;//已由别的线程先创建
+                bootstrap.connect(serverHost,serverPort).sync();
+                connectedHandlerMap.put(serviceName,clientHandler);//已建立连接
+                groupSet.add(group);
+            }
         } catch (Exception e) {
             e.printStackTrace();
             group.shutdownGracefully();
@@ -118,7 +134,8 @@ public class Connector {
     }
 
     /**
-     * @description: 根据服务名称找到一个RPCClientHandler将消息发送出去
+     * @description: 根据服务名称找到一个RPCClientHandler将消息发送出去，这里会并发调用
+     * 线程之间有可能调用同一个服务，而不同的服务有可能在同一个生产者中有提供
      * @param clientMessage 要发送的消息
      * @return: Object 调用结果
      * @author: 杜科
@@ -136,6 +153,13 @@ public class Connector {
 
     public static ConcurrentLinkedQueue getIdleHandlerQueue() {
         return idleHandlerQueue;
+    }
+
+    //关闭所有netty线程
+    public void shutDown(){
+        for (NioEventLoopGroup group : groupSet) {
+            group.shutdownGracefully();
+        }
     }
 
 }

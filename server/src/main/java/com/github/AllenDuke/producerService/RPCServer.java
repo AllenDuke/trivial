@@ -18,6 +18,7 @@ import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.codec.DelimiterBasedFrameDecoder;
 import io.netty.handler.codec.string.StringDecoder;
 import io.netty.handler.codec.string.StringEncoder;
+import io.netty.handler.timeout.IdleStateHandler;
 import io.netty.util.CharsetUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.zookeeper.CreateMode;
@@ -28,6 +29,7 @@ import org.apache.zookeeper.ZooKeeper;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 /**
  * @author 杜科
@@ -77,6 +79,9 @@ public class RPCServer {
     //往zookeeper中注册的服务
     private static Map<String,String> serviceNames;
 
+    //读写空闲达10s后，服务提供方断开连接
+    protected static int allIdleTime=10*1000;//单位毫秒
+
     //配置jdk线程池，启动服务端
     public static void startServer(ThreadPoolExecutor poolExecutor) throws Exception {
         executor=poolExecutor;
@@ -104,6 +109,7 @@ public class RPCServer {
         if(map.containsKey("businessPoolModel")) businessPoolModel= (int) map.get("businessPoolModel");
         if(businessPoolModel==1&&executor==null) throw new ArgNotFoundExecption("缺少jdk线程池");
         if(businessPoolModel==2&&poolService==null) throw new ArgNotFoundExecption("缺少自实现线程池");
+        if(map.containsKey("allIdleTime")) allIdleTime=(int) map.get("allIdleTime");
     }
 
     //配置zookeeper参数
@@ -174,6 +180,8 @@ public class RPCServer {
                                                   false, delimiter));
                                           pipeline.addLast(new StringEncoder());//outbound编码器
                                           pipeline.addLast(new StringDecoder());//inbound解码器
+                                          pipeline.addLast(new IdleStateHandler(60*1000,
+                                                  60*1000,allIdleTime, TimeUnit.MILLISECONDS));
                                           pipeline.addLast(new RPCServerHandler());//业务处理器
                                       }
                                   }

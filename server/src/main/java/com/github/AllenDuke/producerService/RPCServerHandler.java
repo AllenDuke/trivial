@@ -6,9 +6,11 @@ import com.github.AllenDuke.business.InvokeHandler;
 import com.github.AllenDuke.business.InvokeTask;
 import com.github.AllenDuke.dto.ClientMessage;
 import com.github.AllenDuke.dto.ServerMessage;
+import com.github.AllenDuke.exception.ConnectionIdleException;
 import com.github.AllenDuke.myThreadPoolService.ThreadPoolService;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
+import io.netty.handler.timeout.IdleStateEvent;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.concurrent.ThreadPoolExecutor;
@@ -82,4 +84,25 @@ public class RPCServerHandler extends ChannelInboundHandlerAdapter {
         ctx.close();
     }
 
+    @Override
+    public void userEventTriggered(ChannelHandlerContext ctx, Object evt) throws Exception {
+        if(evt instanceof IdleStateEvent) {
+            IdleStateEvent event = (IdleStateEvent) evt;
+            String eventType = null;
+            switch (event.state()) {
+                case READER_IDLE:
+                    eventType = "读空闲";
+                    break;
+                case WRITER_IDLE:
+                    eventType = "写空闲";
+                    break;
+                case ALL_IDLE:
+                    eventType = "读写空闲";
+                    break;
+            }
+            log.error("channel: "+ctx.channel()+eventType,
+                    new ConnectionIdleException("发生连接空闲，即将断开"));
+            ctx.channel().close();
+        }
+    }
 }

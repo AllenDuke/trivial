@@ -6,6 +6,7 @@ server:
   #bossSize: 1
   #workerSize: 8
   businessPoolModel: 2 #缺省为0，0为不开启，1为使用jdk线程池，2为使用自实现线程池
+  allIdleTime: 3000
 zookeeper:
   host: 49.235.168.215
   port: 2181
