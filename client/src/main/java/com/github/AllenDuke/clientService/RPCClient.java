@@ -4,22 +4,17 @@ package com.github.AllenDuke.clientService;
 import com.github.AllenDuke.dto.ClientMessage;
 import com.github.AllenDuke.event.TimeOutEvent;
 import com.github.AllenDuke.exception.ArgNotFoundExecption;
+import com.github.AllenDuke.exception.InitException;
+import com.github.AllenDuke.exception.SubscribeFailException;
 import com.github.AllenDuke.listener.DefaultTimeOutListener;
 import com.github.AllenDuke.listener.TimeOutListener;
 import com.github.AllenDuke.util.YmlUtil;
-import io.netty.bootstrap.Bootstrap;
-import io.netty.buffer.ByteBuf;
-import io.netty.buffer.Unpooled;
-import io.netty.channel.ChannelInitializer;
-import io.netty.channel.ChannelOption;
-import io.netty.channel.ChannelPipeline;
 import io.netty.channel.nio.NioEventLoopGroup;
-import io.netty.channel.socket.SocketChannel;
-import io.netty.channel.socket.nio.NioSocketChannel;
-import io.netty.handler.codec.DelimiterBasedFrameDecoder;
-import io.netty.handler.codec.string.StringDecoder;
-import io.netty.handler.codec.string.StringEncoder;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.zookeeper.CreateMode;
+import org.apache.zookeeper.Watcher;
+import org.apache.zookeeper.ZooDefs;
+import org.apache.zookeeper.ZooKeeper;
 
 import java.lang.reflect.Proxy;
 import java.util.Map;
@@ -39,7 +34,7 @@ public class RPCClient {
     private static boolean isInit = false;
 
     //关闭标志，用于
-    protected static boolean shutdown=false;
+    protected static boolean shutdown = false;
 
     //服务提供方主机地址
     private static String serverHost;
@@ -51,10 +46,10 @@ public class RPCClient {
     protected static long timeout = -1;
 
     //超时重试次数
-    public static int retryNum=0;
+    public static int retryNum = 0;
 
     //netty线程数
-    private static int workerSize= 0;//为0将使用默认值：cpu核数*2
+    private static int workerSize = 0;//为0将使用默认值：cpu核数*2
 
     //netty线程组
     private static NioEventLoopGroup group;
@@ -65,16 +60,37 @@ public class RPCClient {
     //超时监听者
     protected static TimeOutListener listener;
 
+    //zookeeper地址
+    private static String zkHost;
+
+    //zookeeper端口
+    private static int zkPort;
+
+    //zookeeper客户端
+    public static ZooKeeper zooKeeper;
+
+    //zookeeper连接超时
+    private static int sessionTimeOut = 1000;
+
+    //往zookeeper中订阅的服务
+    private static Map<String, String> serviceNames;
+
+    //注册中心，用于寻找服务
+    protected static Registry registry;
+
+    //连接器，用于与服务端通信
+    private static Connector connector;
+
     /**
-     * @description: 注册超时监听器，当发生超时时，将调用监听器里的相关方法
      * @param timeOutListener 超时监听器
+     * @description: 注册超时监听器，当发生超时时，将调用监听器里的相关方法
      * @return: void
      * @author: 杜科
      * @date: 2020/3/4
      */
-    public synchronized static void init(TimeOutListener timeOutListener) {
-        if(isInit) return;
-        listener= timeOutListener;
+    public synchronized static void init(TimeOutListener timeOutListener) throws Exception {
+        if (isInit) return;
+        listener = timeOutListener;
         init();
     }
 
@@ -88,44 +104,61 @@ public class RPCClient {
      * @author: 杜科
      * @date: 2020/2/28
      */
-    public synchronized static void init() {
+    public synchronized static void init() throws Exception {
         if (isInit) return;
         isInit = true;
+        zkconfig();
+        config();
+        if (timeout != -1 && listener == null) listener = new DefaultTimeOutListener();//设置默认监听器(注意初始化顺序)
+    }
+
+    //配置基础参数
+    private static void config() {
         Map<String, Object> map = YmlUtil.getResMap("client");
+        if (map == null) throw new ArgNotFoundExecption("rpc.yml缺少参数client");
         if (!map.containsKey("serverHost")) throw new ArgNotFoundExecption("rpc.yml缺少参数serverHost!");
         serverHost = (String) map.get("serverHost");
         if (!map.containsKey("serverPort")) throw new ArgNotFoundExecption("rpc.yml缺少参数serverPort!");
         serverPort = (Integer) map.get("serverPort");
         if (map.containsKey("timeout")) timeout = new Long((int) map.get("timeout"));
-        if(map.containsKey("retryNum")) retryNum=(int) map.get("retryNum");
-        if(map.containsKey("workerSize")) workerSize= (int) map.get("workerSize");
-        clientHandler = new RPCClientHandler();
-        if(timeout!=-1&&listener==null) listener=new DefaultTimeOutListener();//设置默认监听器(注意初始化顺序)
-        group = new NioEventLoopGroup(workerSize);
-        try {
-            Bootstrap bootstrap = new Bootstrap();
-            bootstrap.group(group)
-                    .channel(NioSocketChannel.class)
-                    .option(ChannelOption.TCP_NODELAY, true)
-                    .handler(
-                            new ChannelInitializer<SocketChannel>() {
-                                @Override
-                                protected void initChannel(SocketChannel ch) throws Exception {
-                                    ChannelPipeline pipeline = ch.pipeline();
-                                    ByteBuf delimiter = Unpooled.copiedBuffer("}".getBytes());//“}”为分隔符
-                                    pipeline.addLast(new DelimiterBasedFrameDecoder(2048,
-                                            false, delimiter));//不去除分割符
-                                    pipeline.addLast(new StringEncoder());//outbound编码器
-                                    pipeline.addLast(new StringDecoder());//inbound解码器
-                                    pipeline.addLast(clientHandler);//业务处理器
-                                }
+        if (map.containsKey("retryNum")) retryNum = (int) map.get("retryNum");
+        if (map.containsKey("workerSize")) workerSize = (int) map.get("workerSize");
+        connector = new Connector();
+    }
+
+    //配置zookeeper参数
+    private static void zkconfig() throws Exception {
+        Map<String, Object> map = YmlUtil.getResMap("zookeeper");
+        if (map == null) return;//没有配置就直接略过
+        if (!map.containsKey("host")) throw new ArgNotFoundExecption("rpc.yml缺少参数host!");
+        zkHost = (String) map.get("host");
+        if (!map.containsKey("port")) throw new ArgNotFoundExecption("rpc.yml缺少参数port!");
+        zkPort = (Integer) map.get("port");
+        if (map.containsKey("sessionTimeOut")) sessionTimeOut = (int) map.get("sessionTimeOut");
+        if (map.containsKey("serviceNames")) serviceNames = (Map<String, String>) map.get("serviceNames");
+        String connectString = zkHost + ":" + zkPort;
+        zooKeeper = new ZooKeeper(connectString, sessionTimeOut, (event) -> {
+            //多级节点要求父级为persistent
+            try {
+                if (event.getState() == Watcher.Event.KeeperState.SyncConnected) {
+                    if (serviceNames != null && serviceNames.keySet() != null)
+                        for (String s : serviceNames.keySet()) {
+                            if (zooKeeper.exists("/trivial/" + s, null) == null) {
+                                //先创建父级persistent节点
+                                zooKeeper.create("/trivial/" + s, null
+                                        , ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
+                                zooKeeper.create("/trivial/" + s + "/consumers", null
+                                        , ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
                             }
-                    );
-            bootstrap.connect(serverHost, serverPort).sync();
-        } catch (Exception e) {
-            e.printStackTrace();
-            group.shutdownGracefully();
-        }
+                        }
+                    log.info("成功从zookeeper订阅服务");
+                } else log.error("订阅失败", new SubscribeFailException("订阅失败"));
+            } catch (Exception e) {
+                log.error("节点创建异常", e);
+            }
+        });
+        registry = new Registry();
+        Thread.sleep(10000);//休眠10s等待注册完成
     }
 
     /**
@@ -142,28 +175,27 @@ public class RPCClient {
      * @date: 2020/2/12
      */
     public static Object getServiceImpl(final Class<?> serivceClass) {
-        if (!isInit) throw new RuntimeException("还没有init");
+        if (!isInit) throw new InitException("还没有init");
         return Proxy.newProxyInstance(Thread.currentThread().getContextClassLoader(),
                 new Class<?>[]{serivceClass}, (proxy, method, args) -> {
                     //lamda表达式，匿名内部类实现InvokeInhandler接口，重写invoke方法
 
                     String className = serivceClass.getName();
-                    className = className.substring(className.lastIndexOf(".") + 1) + "Impl";//去掉包名
+                    className = className.substring(className.lastIndexOf(".") + 1);//去掉包名
                     ClientMessage clientMessage = new ClientMessage(Thread.currentThread().getId(),
                             className, method.getName(), args);
-                    clientHandler.sendMsg(clientMessage);//caller park
-                    Object result = clientHandler.getResult(Thread.currentThread().getId());//unpark后获取结果
+                    Object result = connector.invoke(clientMessage);
 //                    if(result.getClass()==method.getReturnType())
                     return result;
                 });
     }
 
-    public static void shutdown(){
+    public static void shutdown() {
         group.shutdownGracefully();
-        shutdown=true;//按netty线程组的关闭策略先让其完成相关工作，再去检查超时观察者
-        if(timeout!=-1){//结束超时观察者
+        shutdown = true;//按netty线程组的关闭策略先让其完成相关工作，再去检查超时观察者
+        if (timeout != -1) {//结束超时观察者
             clientHandler.getWaiterQueue()//传入当前时间是为了在最后一次检查中不误报超时信息
-                    .add(new TimeOutEvent(new ClientMessage(),System.currentTimeMillis()));
+                    .add(new TimeOutEvent(new ClientMessage(), System.currentTimeMillis()));
         }
     }
 }

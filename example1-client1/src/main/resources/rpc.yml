@@ -1,0 +1,12 @@
+client:
+  name: client1
+  serverHost: 127.0.0.1 #用于直连
+  serverPort: 8000
+  timeout: 2000 #毫秒
+  retryNum: 2
+  #workerSize: 1
+zookeeper:
+  host: 49.235.168.215
+  port: 2181
+  seesionTimeOut: 2000
+  serviceNames: {Calculator} #用于向zookeeper中订阅，实际上用不到，因为当调用的时候是直接寻找server的

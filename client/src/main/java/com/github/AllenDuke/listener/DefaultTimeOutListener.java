@@ -19,19 +19,18 @@ import java.util.concurrent.locks.LockSupport;
 @Slf4j
 public class DefaultTimeOutListener implements TimeOutListener {
 
-    private static RPCClientHandler clientHandler= RPCClient.clientHandler;
-
     /**
      * @description: 对超时事件进行处理，
      * 如果可以重试，那么就重试，
      * 如果不可以就unpark相应的caller，将返回超时提示的字符串（caller要注意ClassCastException）
      * @param event 超时事件
+     * @param clientHandler 该超时事件发生所在pipeline中的RPCClientHandler
      * @return: void
      * @author: 杜科
      * @date: 2020/3/4
      */
     @Override
-    public void handle(TimeOutEvent event) {
+    public void handle(TimeOutEvent event, RPCClientHandler clientHandler) {
         long callerId=event.getMessage().getCallerId();
         long count=event.getMessage().getCount();
         int retryNum=event.getRetryNum();

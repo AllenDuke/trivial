@@ -1,0 +1,11 @@
+client:
+  name: client2
+  serverHost: 127.0.0.1
+  serverPort: 8000
+  timeout: 2000
+  retryNum: 2
+zookeeper:
+  host: 49.235.168.215
+  port: 2181
+  seesionTimeOut: 2000
+  serviceNames: {HelloService}

@@ -2,6 +2,7 @@ package com.github.AllenDuke.producerService;
 
 
 import com.github.AllenDuke.exception.ArgNotFoundExecption;
+import com.github.AllenDuke.exception.RegistrationFailException;
 import com.github.AllenDuke.myThreadPoolService.ThreadPoolService;
 import com.github.AllenDuke.util.YmlUtil;
 import io.netty.bootstrap.ServerBootstrap;
@@ -17,9 +18,15 @@ import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.codec.DelimiterBasedFrameDecoder;
 import io.netty.handler.codec.string.StringDecoder;
 import io.netty.handler.codec.string.StringEncoder;
+import io.netty.util.CharsetUtil;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.zookeeper.CreateMode;
+import org.apache.zookeeper.Watcher;
+import org.apache.zookeeper.ZooDefs;
+import org.apache.zookeeper.ZooKeeper;
 
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ThreadPoolExecutor;
 
 /**
@@ -55,19 +62,37 @@ public class RPCServer {
     //自实现线程池
     protected static ThreadPoolService poolService;
 
-    public static void startServer(ThreadPoolExecutor poolExecutor){
+    //zookeeper地址
+    private static String zkHost;
+
+    //zookeeper端口
+    private static int zkPort;
+
+    //zookeeper客户端
+    private static ZooKeeper zooKeeper;
+
+    //zookeeper连接超时
+    private static int sessionTimeOut=1000;
+
+    //往zookeeper中注册的服务
+    private static Map<String,String> serviceNames;
+
+    //配置jdk线程池，启动服务端
+    public static void startServer(ThreadPoolExecutor poolExecutor) throws Exception {
         executor=poolExecutor;
         startServer();
     }
 
-    public static void startServer(ThreadPoolService threadPoolService){
+    //配置自实现线程池，启动服务端
+    public static void startServer(ThreadPoolService threadPoolService) throws Exception {
         poolService=threadPoolService;
         startServer();
     }
 
-    //启动netty线程组
-    public static void startServer() {
+    //配置基础参数
+    private static void config(){
         Map<String, Object> map = YmlUtil.getResMap("server");
+        if(map==null) throw  new ArgNotFoundExecption("rpc.yml缺少参数server！");
         if (!map.containsKey("host")) throw new ArgNotFoundExecption("rpc.yml缺少参数host!");
         host = (String) map.get("host");
         if (!map.containsKey("port")) throw new ArgNotFoundExecption("rpc.yml缺少参数port!");
@@ -79,6 +104,51 @@ public class RPCServer {
         if(map.containsKey("businessPoolModel")) businessPoolModel= (int) map.get("businessPoolModel");
         if(businessPoolModel==1&&executor==null) throw new ArgNotFoundExecption("缺少jdk线程池");
         if(businessPoolModel==2&&poolService==null) throw new ArgNotFoundExecption("缺少自实现线程池");
+    }
+
+    //配置zookeeper参数
+    private static void zkConfig() throws Exception{
+        Map<String, Object> map= YmlUtil.getResMap("zookeeper");
+        if(map==null) return;//没有配置就直接略过
+        if (!map.containsKey("host")) throw new ArgNotFoundExecption("rpc.yml缺少参数host!");
+        zkHost= (String) map.get("host");
+        if (!map.containsKey("port")) throw new ArgNotFoundExecption("rpc.yml缺少参数port!");
+        zkPort = (Integer) map.get("port");
+        if(map.containsKey("sessionTimeOut")) sessionTimeOut=(int) map.get("sessionTimeOut");
+        if(!map.containsKey("serviceNames")) throw new ArgNotFoundExecption("rpc.yaml缺少参数serviceNames");
+        serviceNames= (Map<String, String>) map.get("serviceNames");
+        Set<String> keySet = serviceNames.keySet();
+        String connectString=zkHost+":"+zkPort;
+        zooKeeper=new ZooKeeper(connectString,sessionTimeOut,(event)->{
+            //多级节点要求父级为persistent
+            try {
+                if (event.getState()  == Watcher.Event.KeeperState.SyncConnected) {
+                    for (String s : keySet) {
+                        if (zooKeeper.exists("/trivial/" + s, null)==null){
+                            //先创建父级persistent节点
+                            zooKeeper.create("/trivial/"+s,null
+                                    , ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
+                            zooKeeper.create("/trivial/"+s+"/providors",null
+                                    , ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
+                        }
+                        //创建当前ephemeral节点
+                        zooKeeper.create("/trivial/"+s+"/providors/"+(host+":"+port),
+                                (host+":"+port).getBytes(CharsetUtil.UTF_8),
+                                ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.EPHEMERAL);
+                    }
+                    log.info("成功注册到zookeeper");
+                }else log.error("注册失败",new RegistrationFailException("注册失败"));
+            }catch (Exception e){
+                log.error("节点创建异常",e);
+            }
+
+        });
+    }
+
+    //启动netty线程组
+    public static void startServer() throws Exception {
+        zkConfig();
+        config();
         new Thread(() -> {//转移阻塞点，使主线程得以返回
             startServer0();
         }).start();

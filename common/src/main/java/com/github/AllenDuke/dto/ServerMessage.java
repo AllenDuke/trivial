@@ -2,7 +2,7 @@ package com.github.AllenDuke.dto;
 
 /**
  * @author 杜科
- * @description
+ * @description 服务端发送给客户端的消息
  * @contact AllenDuke@163.com
  * @since 2020/2/27
  */

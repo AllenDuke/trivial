@@ -17,7 +17,7 @@ import java.util.concurrent.locks.LockSupport;
 
 /**
  * @author 杜科
- * @description rpc消费者的业务处理器
+ * @description rpc消费者的业务处理器，注意一条pipeline对应有一个RPCClientHandler
  * 所有caller的消息经此发出，因此caller在此park。
  * 当业务处理器收到服务端的结果时，会根据结果中的线程id unpark相应的caller。
  *
@@ -32,24 +32,25 @@ public class RPCClientHandler extends ChannelInboundHandlerAdapter {
 
     private ChannelHandlerContext context;
 
+    //以下static数据为各pipeline共有
     //调用者线程在各自的条件上等待，并发性能差，要先抢夺锁
-//    private final Map<Long, Condition> waitingThreadMap=new HashMap();
+//    private static final Map<Long, Condition> waitingThreadMap=new HashMap();
 
     //callerId与caller，park后加入，unpark后删除
-    private final Map<Long, Thread> waiterMap=new HashMap<>();
+    private static final Map<Long, Thread> waiterMap=new HashMap<>();
 
     //各caller的当前调用结果（这里一直会缓存上一次的结果）
-    private final Map<Long,Object> resultMap=new HashMap<>();
+    private static final Map<Long,Object> resultMap=new HashMap<>();
 
-    //各caller的当前条用次数，park后加入，unpark后删除
-    private final Map<Long,Long> countMap=new HashMap<>();
+    //各caller的当前调用用次数，park后加入，unpark后删除
+    private static final Map<Long,Long> countMap=new HashMap<>();
 
     //超时观察队列
-    private BlockingQueue<TimeOutEvent> waiterQueue;
-    {if(RPCClient.timeout!=-1)waiterQueue=new LinkedBlockingQueue<>();}
+    private static BlockingQueue<TimeOutEvent> waiterQueue;
+    static {if(RPCClient.timeout!=-1)waiterQueue=new LinkedBlockingQueue<>();}
 
     //超时观察者，原子变量避免并发创建
-    private final AtomicReference<Thread> watcher=new AtomicReference<>();
+    private static final AtomicReference<Thread> watcher=new AtomicReference<>();
 
     //与服务器的连接创建后，就会被调用, 这个方法是第一个被调用
     @Override
@@ -132,7 +133,7 @@ public class RPCClientHandler extends ChannelInboundHandlerAdapter {
         waiterQueue.add(new TimeOutEvent(message,System.currentTimeMillis()));//加入超时观察队列
     }
 
-    //超时观察线程
+    //全局超时观察线程
     private class Watcher extends Thread{
         @Override
         public void run() {
@@ -146,7 +147,8 @@ public class RPCClientHandler extends ChannelInboundHandlerAdapter {
                         long count=head.getMessage().getCount();
                         if(countMap.get(callerId)==null
                                 || countMap.get(callerId)!=count) continue;//实际上已经成功返回
-                       RPCClient.listener.handle(head);//发生超时，调用注册的监听器的handle方法
+                        // 发生超时，调用注册的监听器的handle方法
+                       RPCClient.listener.handle(head, (RPCClientHandler) context.handler());
                     }
                 } catch (Exception e) {//cathch包含可能在listen.handle抛出的异常
                     e.printStackTrace();

@@ -1,5 +1,6 @@
 package com.github.AllenDuke.listener;
 
+import com.github.AllenDuke.clientService.RPCClientHandler;
 import com.github.AllenDuke.event.TimeOutEvent;
 
 /**
@@ -10,5 +11,13 @@ import com.github.AllenDuke.event.TimeOutEvent;
  */
 public interface TimeOutListener {
 
-    void handle(TimeOutEvent event);
+    /**
+     * @description: 对某一pipeline中发生的超时事件进行处理
+     * @param event 超时事件
+     * @param clientHandler 处理该事件的RPCClientHandler（从中可以获取到对应的channel）
+     * @return: void
+     * @author: 杜科
+     * @date: 2020/3/11
+     */
+    void handle(TimeOutEvent event, RPCClientHandler clientHandler);
 }

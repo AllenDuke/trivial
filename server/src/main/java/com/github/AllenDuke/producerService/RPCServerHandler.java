@@ -51,6 +51,7 @@ public class RPCServerHandler extends ChannelInboundHandlerAdapter {
             ctx.writeAndFlush("服务器解析异常");
             return;
         }
+        clientMessage.setClassName(clientMessage.getClassName()+"Impl");//加上后缀
         if(RPCServer.businessPoolModel==1) {
             executor.execute(new InvokeTask(clientMessage,invokeHandler,ctx));
             return;

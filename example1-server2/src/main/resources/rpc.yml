@@ -1,0 +1,11 @@
+server:
+  name: server2
+  host: 127.0.0.1
+  port: 7000
+  packageName: com.github.AllenDuke.serviceImpl
+  businessPoolModel: 2
+zookeeper:
+  host: 49.235.168.215
+  port: 2181
+  seesionTimeOut: 2000
+  serviceNames: {HelloService}
