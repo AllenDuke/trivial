@@ -7,7 +7,7 @@ import com.github.AllenDuke.listener.TimeOutListener;
 
 /**
  * @author 杜科
- * @description
+ * @description 超时监听器
  * @contact AllenDuke@163.com
  * @since 2020/3/4
  */

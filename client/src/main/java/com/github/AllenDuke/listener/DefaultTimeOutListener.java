@@ -1,5 +1,6 @@
 package com.github.AllenDuke.listener;
 
+import com.alibaba.fastjson.JSON;
 import com.github.AllenDuke.clientService.RPCClient;
 import com.github.AllenDuke.clientService.RPCClientHandler;
 import com.github.AllenDuke.dto.ClientMessage;
@@ -34,14 +35,14 @@ public class DefaultTimeOutListener implements TimeOutListener {
         long callerId=event.getMessage().getCallerId();
         long count=event.getMessage().getCount();
         int retryNum=event.getRetryNum();
-        ClientMessage message=event.getMessage();
+        ClientMessage clientMessage=event.getMessage();
         ChannelHandlerContext context=clientHandler.getContext();
         if(retryNum>0){
             retryNum--;
             event.setRetryNum(retryNum);
             log.error("线程——"+callerId+" 第 "+count +" 次调用超时，即将进行第 "
                     +(RPCClient.retryNum-retryNum)+" 次重试");
-            context.writeAndFlush(message);//重发信息
+            context.writeAndFlush(JSON.toJSONString(clientMessage));//重发信息
             return;
         }
         Map<Long,Object> resultMap=clientHandler.getResultMap();
