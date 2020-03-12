@@ -7,7 +7,7 @@ package com.github.AllenDuke.exception;
  * @since 2020/3/11
  */
 public class ConnectionIdleException extends RuntimeException{
-    public ConnectionIdleException(){}
+    public ConnectionIdleException(){super();}
 
     public ConnectionIdleException(String s){super(s);}
 }

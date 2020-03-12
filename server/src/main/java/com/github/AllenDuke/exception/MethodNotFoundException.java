@@ -8,7 +8,7 @@ package com.github.AllenDuke.exception;
  */
 public class MethodNotFoundException extends RuntimeException{
 
-    public MethodNotFoundException(){}
+    public MethodNotFoundException(){super();}
 
     public MethodNotFoundException(String s){super(s);}
 }

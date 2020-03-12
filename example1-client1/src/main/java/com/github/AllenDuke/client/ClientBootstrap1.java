@@ -19,6 +19,7 @@ public class ClientBootstrap1 {
         new Thread(()->{
             calculator.add(1, "2");
         }).start();
+        //TODO 两线程并发时依然有错误，如消息丢失、漏发
         new Thread(()->{
             try {
                 calculator.multipy(2, 7);

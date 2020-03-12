@@ -9,7 +9,7 @@ package com.github.AllenDuke.exception;
  */
 public class InvokeTimeOutException extends RuntimeException {
 
-    public InvokeTimeOutException(){}
+    public InvokeTimeOutException(){super();}
 
     public InvokeTimeOutException(String s){super(s);}
 }

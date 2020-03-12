@@ -1,5 +1,6 @@
 package com.github.AllenDuke.clientService;
 
+import com.github.AllenDuke.exception.ServiceNotFoundException;
 import org.apache.zookeeper.ZooKeeper;
 
 import java.util.List;
@@ -30,7 +31,8 @@ public class Registry {
         } catch (Exception e) {
             e.printStackTrace();
         }
-        int rand= new Random().nextInt()%children.size();//随机返回
+        if(children==null||children.size()==0) throw new ServiceNotFoundException("找不到服务："+serviceName);
+        int rand= new Random().nextInt(children.size());//随机返回children.size为上界的非负数
         return children.get(rand);
     }
 

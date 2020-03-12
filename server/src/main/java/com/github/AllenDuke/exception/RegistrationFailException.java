@@ -7,7 +7,7 @@ package com.github.AllenDuke.exception;
  * @since 2020/3/10
  */
 public class RegistrationFailException extends Exception {
-    public RegistrationFailException(){}
+    public RegistrationFailException(){super();}
 
     public RegistrationFailException(String s){super(s);}
 }

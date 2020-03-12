@@ -8,7 +8,7 @@ package com.github.AllenDuke.exception;
  */
 public class ArgNotFoundExecption extends RuntimeException {
 
-    public ArgNotFoundExecption(){}
+    public ArgNotFoundExecption(){super();}
 
     public ArgNotFoundExecption(String s){super(s);}
 }

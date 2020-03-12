@@ -8,7 +8,7 @@ package com.github.AllenDuke.exception;
  */
 public class ShutDownException extends RuntimeException{
 
-    public ShutDownException(){}
+    public ShutDownException(){super();}
 
     public ShutDownException(String s){super(s);}
 }
