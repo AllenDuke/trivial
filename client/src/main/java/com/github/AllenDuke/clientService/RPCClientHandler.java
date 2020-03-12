@@ -10,6 +10,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicReference;
@@ -30,7 +31,8 @@ import java.util.concurrent.locks.LockSupport;
 @Slf4j
 public class RPCClientHandler extends ChannelInboundHandlerAdapter {
 
-    private ChannelHandlerContext context;
+    //对应的ChannelHandlerContext
+    private volatile ChannelHandlerContext context;//一个线程连上后，其他线程要感知到
 
     //以下static数据为各pipeline共有
     //调用者线程在各自的条件上等待，并发性能差，要先抢夺锁
@@ -89,7 +91,7 @@ public class RPCClientHandler extends ChannelInboundHandlerAdapter {
             LockSupport.unpark(waiterMap.get(callerId));
             waiterMap.remove(callerId);
             countMap.remove(callerId);
-        }else {
+        }else {//如果超时后断开了连接是收不到历史信息的
             log.info("收到发送给线程——"+callerId+" 的历史信息，即将即将抛弃，继续等待");//上次调用超时
         }
     }
@@ -99,9 +101,24 @@ public class RPCClientHandler extends ChannelInboundHandlerAdapter {
         ctx.close();
     }
 
+    /**
+     * @description: 当断开连接时,当前RPCClientHandler要从Connector的connectedHandlerMap中移除,
+     * pipeline加入到idlePipelineMap
+     * @param ctx
+     * @return: void
+     * @author: 杜科
+     * @date: 2020/3/11
+     */
     @Override
     public void channelInactive(ChannelHandlerContext ctx) throws Exception {
-        log.error(ctx.channel()+" 连接已断开");
+        log.error(ctx.channel()+" 连接已断开，即将加入空闲连接池");
+        context=null;//提醒其他线程不要使用马上要断开连接
+        Map<String, RPCClientHandler> connectedHandlerMap = Connector.getConnectedHandlerMap();
+        Set<String> keySet = connectedHandlerMap.keySet();
+        for (String s : keySet) {
+            if(connectedHandlerMap.get(s)==this) connectedHandlerMap.remove(s);
+        }
+        Connector.getIdlePipelineQueue().add(this.getContext().pipeline());
     }
 
 
@@ -118,6 +135,7 @@ public class RPCClientHandler extends ChannelInboundHandlerAdapter {
         long callerId=clientMessage.getCallerId();
         waiterMap.put(callerId,Thread.currentThread());//caller加入map当中
         countMap.put(callerId,clientMessage.getCount());
+        while(context==null);//这里直接自旋等待，因为马上就连接上了
         if(RPCClient.timeout!=-1) doWatch(clientMessage);//进行超时观察
         context.writeAndFlush(JSON.toJSONString(clientMessage));//加到任务队列，netty线程发送json文本
         log.info("线程——"+callerId+"，要发送信息"+clientMessage);
@@ -135,7 +153,7 @@ public class RPCClientHandler extends ChannelInboundHandlerAdapter {
         if(watcher.get()==null){//这里不直接cas是因为cas是一条cpu指令，能省则省。
             Thread t1=new Watcher();
             t1.setDaemon(true);
-            t1.setName("watcher");//事实上可以像waiterQueue一样在成员代码块中初始化
+            t1.setName("watcher");//事实上可以像waiterQueue一样在静态代码块中初始化，或者直接加synchronized
             if(watcher.compareAndSet(null,t1)) t1.start();
         }
         waiterQueue.add(new TimeOutEvent(message,System.currentTimeMillis()));//加入超时观察队列
@@ -145,9 +163,17 @@ public class RPCClientHandler extends ChannelInboundHandlerAdapter {
     private class Watcher extends Thread{
         @Override
         public void run() {
-            while(!RPCClient.shutdown){//每次循环检查是否已经关闭，同样会让出cpu
+            //shutdown后也会继续完成剩下的的工作
+            while(!RPCClient.shutdown||waiterQueue.size()>0){//每次循环检查，同样会让出cpu
                 try {
                     TimeOutEvent head=waiterQueue.take();//阻塞获取头
+                    if(head.getCreateTime()==0){//shutdown标志
+                        if(waiterQueue.size()==0) break;//已经没有后续任务了
+                        else {
+                            waiterQueue.add(head);//将结束标志加回队尾
+                            continue;
+                        }
+                    }
                     if(System.currentTimeMillis()-head.getCreateTime() <RPCClient.timeout)
                         waiterQueue.add(head);//如果没有超时再加回到队尾
                     else{//如果超时了
@@ -179,7 +205,7 @@ public class RPCClientHandler extends ChannelInboundHandlerAdapter {
     }
 
     //用于在主线程关闭netty线程组时，主线程往超时观察队列中加入一个节点，让超时观察者苏醒一次去检查关闭标志，进而结束
-    protected BlockingQueue<TimeOutEvent> getWaiterQueue(){return this.waiterQueue;}
+    protected static BlockingQueue<TimeOutEvent> getWaiterQueue(){return waiterQueue;}
 
     public ChannelHandlerContext getContext() {
         return context;
@@ -196,4 +222,5 @@ public class RPCClientHandler extends ChannelInboundHandlerAdapter {
     public Map<Long, Long> getCountMap() {
         return countMap;
     }
+
 }

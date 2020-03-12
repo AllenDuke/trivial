@@ -18,13 +18,22 @@ public class ClientBootstrap1 {
         Calculator calculator = (Calculator) RPCClient.getServiceImpl(Calculator.class);
         new Thread(()->{
             calculator.add(1, "2");
-            calculator.multipy(3, 6);
         }).start();
         new Thread(()->{
-            calculator.multipy(2, 7);
+            try {
+                calculator.multipy(2, 7);
+            }catch (Exception e){
+                System.out.println("调用超时");
+            }
+            try {
+                Thread.sleep(11000);
+            } catch (InterruptedException e) {
+
+            }
+            System.out.println(calculator.add(3, "4"));
+
         }).start();
         //RPCClient.shutdown();
-
     }
 
 

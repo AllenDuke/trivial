@@ -7,8 +7,8 @@ package com.github.AllenDuke.exception;
  * @since 2020/3/10
  */
 public class InitException extends RuntimeException {
-    public InitException() {
-    }
+
+    public InitException() {}
 
     public InitException(String s) {
         super(s);

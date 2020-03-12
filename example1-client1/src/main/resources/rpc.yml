@@ -3,7 +3,7 @@ client:
   serverHost: 127.0.0.1 #用于直连
   serverPort: 8000
   timeout: 2000 #毫秒
-  retryNum: 2
+  retryNum: 0 #这里设置为0是为了体现出超时请求重路由的效果
   #workerSize: 1
 zookeeper:
   host: 49.235.168.215

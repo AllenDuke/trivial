@@ -5,6 +5,7 @@ import com.github.AllenDuke.dto.ClientMessage;
 import com.github.AllenDuke.event.TimeOutEvent;
 import com.github.AllenDuke.exception.ArgNotFoundExecption;
 import com.github.AllenDuke.exception.InitException;
+import com.github.AllenDuke.exception.ShutDownException;
 import com.github.AllenDuke.exception.SubscribeFailException;
 import com.github.AllenDuke.listener.DefaultTimeOutListener;
 import com.github.AllenDuke.listener.TimeOutListener;
@@ -17,10 +18,11 @@ import org.apache.zookeeper.ZooKeeper;
 
 import java.lang.reflect.Proxy;
 import java.util.Map;
+import java.util.concurrent.locks.LockSupport;
 
 /**
  * @author 杜科
- * @description rpc消费者，要求源码中resource文件夹中有myrpc.yml
+ * @description rpc消费者，要求源码中resource文件夹中有rpc.yml
  * 由于netty线程收到数据后只需要进行简单的验证就可以去唤醒caller，因此不需要使用业务线程池
  * 而客户端的超时机制，另有详细说明
  * @contact AllenDuke@163.com
@@ -32,10 +34,10 @@ public class RPCClient {
     //初始化标志
     private static boolean isInit = false;
 
-    //关闭标志，用于
+    //关闭标志，用于关闭netty线程组
     protected static boolean shutdown = false;
 
-    //服务提供方主机地址
+    //服务提供方主机地址，用于直连
     private static String serverHost;
 
     //服务提供方端口号
@@ -50,12 +52,10 @@ public class RPCClient {
     //netty线程数
     private static int workerSize = 0;//为0将使用默认值：cpu核数*2
 
-
-
     //业务处理器
     public static RPCClientHandler clientHandler;
 
-    //超时监听者
+    //超时监听器，超时后会收到通知
     protected static TimeOutListener listener;
 
     //zookeeper地址
@@ -77,7 +77,7 @@ public class RPCClient {
     protected static Registry registry;
 
     //连接器，用于与服务端通信
-    private static Connector connector;
+    protected static Connector connector;
 
     /**
      * @param timeOutListener 超时监听器
@@ -135,6 +135,7 @@ public class RPCClient {
         if (map.containsKey("sessionTimeOut")) sessionTimeOut = (int) map.get("sessionTimeOut");
         if (map.containsKey("serviceNames")) serviceNames = (Map<String, String>) map.get("serviceNames");
         String connectString = zkHost + ":" + zkPort;
+        Thread main=Thread.currentThread();
         zooKeeper = new ZooKeeper(connectString, sessionTimeOut, (event) -> {
             //多级节点要求父级为persistent
             try {
@@ -153,10 +154,12 @@ public class RPCClient {
                 } else log.error("订阅失败", new SubscribeFailException("订阅失败"));
             } catch (Exception e) {
                 log.error("节点创建异常", e);
+            }finally {
+                LockSupport.unpark(main);//唤醒主线程
             }
         });
         registry = new Registry();
-        Thread.sleep(10000);//休眠10s等待注册完成
+        LockSupport.park();//主线程等待zookeeper连接成功
     }
 
     /**
@@ -174,10 +177,12 @@ public class RPCClient {
      */
     public static Object getServiceImpl(final Class<?> serivceClass) {
         if (!isInit) throw new InitException("还没有init");
+        if(shutdown) throw new ShutDownException("当前RPCClient已经shutdown了");
         return Proxy.newProxyInstance(Thread.currentThread().getContextClassLoader(),
                 new Class<?>[]{serivceClass}, (proxy, method, args) -> {
                     //lamda表达式，匿名内部类实现InvokeInhandler接口，重写invoke方法
 
+                    if(shutdown) throw new ShutDownException("当前RPCClient已经shutdown了");
                     String className = serivceClass.getName();
                     className = className.substring(className.lastIndexOf(".") + 1);//去掉包名
                     ClientMessage clientMessage = new ClientMessage(Thread.currentThread().getId(),
@@ -192,8 +197,8 @@ public class RPCClient {
         connector.shutDown();
         shutdown = true;//按netty线程组的关闭策略先让其完成相关工作，再去检查超时观察者
         if (timeout != -1) {//结束超时观察者
-            clientHandler.getWaiterQueue()//传入当前时间是为了在最后一次检查中不误报超时信息
-                    .add(new TimeOutEvent(new ClientMessage(), System.currentTimeMillis()));
+            RPCClientHandler.getWaiterQueue()//传入结束标志
+                    .add(new TimeOutEvent(null, 0));
         }
     }
 }

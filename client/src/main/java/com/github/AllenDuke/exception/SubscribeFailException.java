@@ -7,6 +7,7 @@ package com.github.AllenDuke.exception;
  * @since 2020/3/10
  */
 public class SubscribeFailException extends Exception {
+
     public SubscribeFailException(){}
 
     public SubscribeFailException(String s){super(s);}

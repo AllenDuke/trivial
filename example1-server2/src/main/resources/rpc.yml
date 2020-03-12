@@ -4,8 +4,9 @@ server:
   port: 7000
   packageName: com.github.AllenDuke.serviceImpl
   businessPoolModel: 2
+  allIdleTime: 3000
 zookeeper:
   host: 49.235.168.215
   port: 2181
   seesionTimeOut: 2000
-  serviceNames: {HelloService}
+  serviceNames: {HelloService, Calculator}
