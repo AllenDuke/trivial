@@ -34,7 +34,7 @@ public class Connector {
     /**
      * 已与某个RPCServer连接的RPCClientHandler，key为服务名称，如Calculator，但是有可能出现下一次要调用HelloService的时候
      * 从此map中找不到RPCClient，而事实上Calculaor所在的RPCServer也提供了HelloService的服务，但无法感知到，从而又再次与此
-     * 服务端再构建了一条连接，这个问题将在下一次更新中解决，或者不解决。
+     * 服务端再构建了一条连接，TODO 这个问题将在下一次更新中解决（在通信的时候服务端返回它能提供的所有服务），或者不解决。
      * 注意为什么不用ConcurrentHashMap，在createAndConnectChannel有解释
      */
     private static final Map<String, RPCClientHandler> connectedHandlerMap = new HashMap<>();

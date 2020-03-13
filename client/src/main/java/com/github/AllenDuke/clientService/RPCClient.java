@@ -164,7 +164,7 @@ public class RPCClient {
 
     /**
      * @param serivceClass 服务要实现的接口
-     * @description: 返回一个代理对象（jdk动态代理）
+     * @description: 返回一个代理对象（jdk动态代理）,这里没有做缓存
      * 返回前，检查是否初始化
      * 其中invokeHandler的invoke方法内，为以下逻辑（以HelloService接口，sayHello()方法为例）
      * 线程调用 HelloService service=RPCClient.getServiceImpl(HelloService.class);
