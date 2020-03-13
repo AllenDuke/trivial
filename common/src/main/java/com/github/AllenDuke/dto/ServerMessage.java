@@ -8,9 +8,9 @@ package com.github.AllenDuke.dto;
  */
 public class ServerMessage {
 
-    private long callerId;//调用者线程id
-    private long count;//当前调用者的第n次调用
-    private boolean isSucceed=true;//调用成功标志
+    private Long callerId;//调用者线程id
+    private Long count;//当前调用者的第n次调用
+    private Boolean isSucceed=true;//调用成功标志
     private Object reselut;//调用结果，有可能为失败字符串提示
 
     public ServerMessage(){}
