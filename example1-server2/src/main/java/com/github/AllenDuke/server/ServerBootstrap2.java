@@ -14,6 +14,6 @@ public class ServerBootstrap2 {
 
     public static void main(String[] args) throws Exception {
 
-        RPCServer.startServer(new ThreadPoolService());
+        RPCServer.startServer(new ThreadPoolService(1,2,3000,10));
     }
 }

@@ -26,7 +26,7 @@ public class ThreadPoolService {
     private long keepAlive = 2 * 1000;//空闲时间，单位毫秒
     private boolean isShutDown = false;
     /**
-     * ThreadPoolExecutor用的是BlockingQueue，这里用的ConcurrentLinkedQueue
+     * ThreadPoolExecutor用的是BlockingQueue(可设置超时等待)，这里用的ConcurrentLinkedQueue
      * 二者设计差别在于:
      * 前者：
      * 如果核心线程执行完当前任务后，尝试阻塞地从阻塞队列中拉取任务。
@@ -48,19 +48,46 @@ public class ThreadPoolService {
     private ConcurrentLinkedQueue<Runnable> taskQueue = new ConcurrentLinkedQueue();//并发任务队列，控制并发拉取
     private int queueCapacity = 10;//任务队列容量
     private AtomicInteger queueSize = new AtomicInteger(0);//当前任务队列大小，原子变量控制并发提交
-    private RejectHandler rejectHandler = new MyRejectHandler();//拒绝策略
+    private RejectHandler rejectHandler = new DefaultRejectHandler();//拒绝策略
     private ConcurrentLinkedQueue<CoreThread> freeCorePool = new ConcurrentLinkedQueue();//空闲核心线程队列
     private ConcurrentLinkedQueue<NonCoreThread> freeNonCorePool = new ConcurrentLinkedQueue();//空闲非核心线程队列
     private AtomicInteger curSize = new AtomicInteger(2);//当前线程数，原子变量控制并发新建和消亡
 
-    //初始化空闲核心线程队列
-    {
+    //无参初始化
+    public ThreadPoolService(){
         CoreThread core0 = new CoreThread();
         core0.setName("core0");
         CoreThread core1 = new CoreThread();
         core1.setName("core1");
         freeCorePool.add(core0);
         freeCorePool.add(core1);
+    }
+
+    //含参初始化
+    public ThreadPoolService(int coreSize,int maxSize,long keepAlive,int queueCapacity){
+        this.coreSize=coreSize;
+        this.maxSize=maxSize;
+        this.keepAlive=keepAlive;
+        this.queueCapacity=queueCapacity;
+        for (int i = 0; i < coreSize; i++) {
+            CoreThread core=new CoreThread();
+            core.setName("core"+i);
+            freeCorePool.add(core);
+        }
+    }
+
+    //含参初始化
+    public ThreadPoolService(int coreSize,int maxSize,long keepAlive,int queueCapacity,RejectHandler handler){
+        this.rejectHandler=handler;
+        this.coreSize=coreSize;
+        this.maxSize=maxSize;
+        this.keepAlive=keepAlive;
+        this.queueCapacity=queueCapacity;
+        for (int i = 0; i < coreSize; i++) {
+            CoreThread core=new CoreThread();
+            core.setName("core"+i);
+            freeCorePool.add(core);
+        }
     }
 
     /**
@@ -84,7 +111,7 @@ public class ThreadPoolService {
                 freeNonCorePool.add(nonCore);
                 executeByNonCore(task);
             }else{//新建失败
-                curSize.decrementAndGet();
+                curSize.decrementAndGet();//将加上的1减回去
                 reject(task);
             }
 

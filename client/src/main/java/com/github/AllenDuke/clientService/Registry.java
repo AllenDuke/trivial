@@ -56,7 +56,7 @@ public class Registry {
             if(blackSet.contains(children.get(i))) children.remove(i);
             else i++;
         }
-        int rand= new Random().nextInt()%children.size();//随机返回
+        int rand= new Random().nextInt(children.size());//随机返回children.size为上界的非负数
         return children.get(rand);
     }
 }

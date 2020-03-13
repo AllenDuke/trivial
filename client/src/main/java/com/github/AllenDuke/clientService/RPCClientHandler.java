@@ -32,7 +32,7 @@ import java.util.concurrent.locks.LockSupport;
 public class RPCClientHandler extends ChannelInboundHandlerAdapter {
 
     //对应的ChannelHandlerContext
-    private volatile ChannelHandlerContext context;//一个线程连上后，其他线程要感知到
+    private volatile ChannelHandlerContext context;//一个线程连上或断连后，其他线程要感知到
 
     //以下static数据为各pipeline共有
     //调用者线程在各自的条件上等待，并发性能差，要先抢夺锁
@@ -91,7 +91,7 @@ public class RPCClientHandler extends ChannelInboundHandlerAdapter {
             LockSupport.unpark(waiterMap.get(callerId));
             waiterMap.remove(callerId);
             countMap.remove(callerId);
-        }else {//如果超时后断开了连接是收不到历史信息的
+        }else {//如果断开了连接是收不到历史信息的
             log.info("收到发送给线程——"+callerId+" 的历史信息，即将即将抛弃，继续等待");//上次调用超时
         }
     }

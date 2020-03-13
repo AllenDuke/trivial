@@ -4,7 +4,6 @@ import com.github.AllenDuke.dto.ClientMessage;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
-import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.ChannelPipeline;
@@ -94,7 +93,7 @@ public class Connector {
                     log.info(serviceName + ",该服务的连接已由别的线程先创建，这里直接返回");
                     return;
                 }
-                ChannelFuture channelFuture = bootstrap.connect(serverHost, serverPort).sync();
+                bootstrap.connect(serverHost, serverPort).sync();
                 connectedHandlerMap.put(serviceName, clientHandler);//已建立连接
                 groupSet.add(group);
             }
