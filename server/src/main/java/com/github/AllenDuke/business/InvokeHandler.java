@@ -28,7 +28,7 @@ public class InvokeHandler {
     private static final Map<String, Method> methodMap = new HashMap<>();
 
     /**
-     * @description: 找到要调用的类，先从缓存中找，找不到在Class.forName()加载，会抛出ClassNotFoundException
+     * @description: 找到要调用的类，先从缓存中找，找不到再Class.forName()加载，会抛出ClassNotFoundException
      * @param className 类的全限定名
      * @return: java.lang.Class
      * @author: 杜科
@@ -91,7 +91,7 @@ public class InvokeHandler {
     }
 
     /**
-     * @description: 已经客户端发来的信息，进行方法用，返回结果
+     * @description: 对客户端发来的信息，进行方法用，返回结果
      * 会抛出ClassNotFoundException IllegalAccessException
      * InvocationTargetException InstantiationException MethodNotFoundException
      * @param clientMessage 客户端发来的信息

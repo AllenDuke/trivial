@@ -18,13 +18,14 @@ import java.util.concurrent.locks.LockSupport;
 
 /**
  * @author 杜科
- * @description rpc消费者的业务处理器，注意一条pipeline对应有一个RPCClientHandler
+ * @description rpc消费者的业务处理器，注意每条pipeline都有自己的RPCClientHandler
  * 所有caller的消息经此发出，因此caller在此park。
  * 当业务处理器收到服务端的结果时，会根据结果中的线程id unpark相应的caller。
  *
  * 这里多处用到HashMap而不是ConcurrentHashMap是因为，虽然存在并发行为，但彼此只操作自己的数据并没有影响他人。
  * 要发送的信息会封装成任务，加入到eventLoop的TaskQueue
- * 这里的超时机制采用的是：超时向原目的主机重发原信息（后续会将超时请求重新路由到别的主机，另有详细信息）
+ * 这里的超时机制采用的是：超时后向原目的主机重发原信息，重试仍失败，原目的主机将进入该次调用的服务的黑名单，
+ * 下次调用该服务将过滤此目的主机
  * @contact AllenDuke@163.com
  * @since 2020/2/11
  */
@@ -168,8 +169,8 @@ public class RPCClientHandler extends ChannelInboundHandlerAdapter {
                 try {
                     TimeOutEvent head=waiterQueue.take();//阻塞获取头
                     if(head.getCreateTime()==0){//shutdown标志
-                        if(waiterQueue.size()==0) break;//已经没有后续任务了
-                        else {
+                        if(waiterQueue.size()==0) break;//已经没有后续任务了，结束循环
+                        else {//还有后续任务
                             waiterQueue.add(head);//将结束标志加回队尾
                             continue;
                         }

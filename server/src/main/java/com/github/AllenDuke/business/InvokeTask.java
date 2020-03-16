@@ -9,7 +9,7 @@ import lombok.extern.slf4j.Slf4j;
 
 /**
  * @author 杜科
- * @description 调用任务，加入线程池执行
+ * @description 调用任务，加入线程池执行，任务结束后会向channel写入信息
  * @contact AllenDuke@163.com
  * @since 2020/3/1
  */

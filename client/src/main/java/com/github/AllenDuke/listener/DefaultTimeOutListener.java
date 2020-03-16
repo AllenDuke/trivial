@@ -53,7 +53,7 @@ public class DefaultTimeOutListener implements TimeOutListener {
         /**
          * 记录到Connector的TimeOutMap，并从connectedMap中移除，不应该断开连接的，原因如下：
          * 1.有可能别的线程正在使用该channel
-         * 2.该调用超时，只能说明该生产者的该服务可能挂掉了，但是其他服务可能时正常，不能一概而论。
+         * 2.该调用超时，只能说明该生产者的该服务可能挂掉了，但是其他服务可能是正常，不能一概而论。
          * 所以消费者下次调用的使用该服务的时候，过滤掉该主机即可。
          * 当该生产者真的所有服务都挂掉时，那么自然所有消费者调用该服务时都会过滤掉该主机，
          * 已存在的连接将会没人用而空闲，最终会被生产者断开连接，而消费者可以将断开的连接重用。
@@ -68,7 +68,7 @@ public class DefaultTimeOutListener implements TimeOutListener {
         blackList.add(remoteAddress.substring(1));//去掉'/'
         log.error("生产者："+remoteAddress+" 进入服务："+clientMessage.getClassName()+" 的黑名单");
         Connector.getConnectedHandlerMap().
-                remove(clientMessage.getClassName());//有可能有人同时在拿去这个clientHandler，不过问题不大
+                remove(clientMessage.getClassName());//有可能有人同时在拿去这个clientHandler，不过问题不大，可以接收
         log.error("服务："+clientMessage.getClassName()+" 超时假断连，不让新的线程使用该生产者提供的该服务");
 
         Map<Long,Object> resultMap=clientHandler.getResultMap();

@@ -9,7 +9,7 @@ import java.util.Set;
 
 /**
  * @author 杜科
- * @description 注册器，负责注册到zookeeper上
+ * @description 注册中心，主要用于消费者从注册中心中拿取服务提供者信息
  * @contact AllenDuke@163.com
  * @since 2020/3/10
  */
