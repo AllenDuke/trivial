@@ -27,6 +27,8 @@ netty，并发，线程池，原子变量，阻塞队列，并发队列，synchr
 12. 下一版本中增加服务监控与动态治理（容错，降级等）。
 ## 使用
 example模块为样例，要安装lombok。
+## 简单的调用时序图
+![image](https://github.com/AllenDuke/trivial/blob/1.1/image/a%20simple%20sequence%20chart.PNG)
 ## 设计思路与一些细节
 ### 注册中心
 1. 服务端启动后，将自己可以提供的服务注册到zookeeper上，如：/trivial/Calculator/providors/127.0.0.1:8000。
