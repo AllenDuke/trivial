@@ -4,6 +4,7 @@ import com.github.AllenDuke.dto.ClientMessage;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
+import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.ChannelPipeline;
@@ -17,7 +18,6 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.net.InetSocketAddress;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -42,31 +42,20 @@ public class Connector {
     //RPCClientHandler空闲队列(空闲后与原连接断开，进入空闲队列) 并发容器防止并发构建连接
     private static final ConcurrentLinkedQueue<ChannelPipeline> idlePipelineQueue = new ConcurrentLinkedQueue();
 
-    //记录NioEventLoopGroup，用于关闭
-    private static final Set<NioEventLoopGroup> groupSet = new HashSet<>();
-
     //注册中心
     private static final Registry registry = RPCClient.registry;
 
     //记录某种服务调用超时的主机名单，用于下次调用时过滤
     private static final Map<String, Set<String>> timeOutMap = new HashMap<>();
 
-    /**
-     * @param serverAddr  服务端地址，如 127.0.0.1:7000
-     * @param serviceName 该服务端提供的服务的名称，如 Calculator
-     * @description: 新建一条NioSocketChannel，连上指定的服务端
-     * 这里避免调用同一个服务的两个线程同时创建两条连接，所以直接使用sychronized，看起来不友好，
-     * 但实际上新建的次数是不多的，因为可以重用空闲的连接。
-     * 这里不把sychronized加到方法头上，是为了尽量减少要同步的区域，尽量让同步在轻量级锁（自旋）上完成，避免升级
-     * @return: void
-     * @author: 杜科
-     * @date: 2020/3/10
-     */
-    private void createAndConnectChannel(String serverAddr, String serviceName) {
-        NioEventLoopGroup group = new NioEventLoopGroup(1);
-        RPCClientHandler clientHandler = new RPCClientHandler();
+    //复用bootstrap，之前一个连接对应一个bootstrap和 一个nioeventloopgrouph和一个nioeventloop，
+    //现在复用了线程，发挥了nio的优势，但并没有复用空闲的tcp的连接
+    private static Bootstrap bootstrap;
+    private static NioEventLoopGroup group;
+    {
         try {
-            Bootstrap bootstrap = new Bootstrap();
+            group = new NioEventLoopGroup();
+            bootstrap = new Bootstrap();
             bootstrap.group(group)
                     .channel(NioSocketChannel.class)
                     .option(ChannelOption.TCP_NODELAY, true)
@@ -80,10 +69,29 @@ public class Connector {
                                             false, delimiter));//不去除分割符
                                     pipeline.addLast(new StringEncoder());//outbound编码器
                                     pipeline.addLast(new StringDecoder());//inbound解码器
-                                    pipeline.addLast(clientHandler);//业务处理器
+                                    pipeline.addLast(new RPCClientHandler());//业务处理器
                                 }
                             }
                     );
+        } catch (Exception e) {
+            e.printStackTrace();
+            group.shutdownGracefully();
+        }
+    }
+
+    /**
+     * @param serverAddr  服务端地址，如 127.0.0.1:7000
+     * @param serviceName 该服务端提供的服务的名称，如 Calculator
+     * @description: 新建一条NioSocketChannel，连上指定的服务端
+     * 这里避免调用同一个服务的两个线程同时创建两条连接，所以直接使用sychronized，看起来不友好，
+     * 但实际上新建的次数是不多的，因为可以重用空闲的连接。
+     * 这里不把sychronized加到方法头上，是为了尽量减少要同步的区域，尽量让同步在轻量级锁（自旋）上完成，避免升级
+     * @return: void
+     * @author: 杜科
+     * @date: 2020/3/10
+     */
+    private void createAndConnectChannel(String serverAddr, String serviceName) {
+        try {
             int splitIndex = serverAddr.indexOf(":");
             String serverHost = serverAddr.substring(0, splitIndex);
             int serverPort = Integer.valueOf(serverAddr.substring(splitIndex + 1, serverAddr.length()));
@@ -93,13 +101,12 @@ public class Connector {
                     log.info(serviceName + ",该服务的连接已由别的线程先创建，这里直接返回");
                     return;
                 }
-                bootstrap.connect(serverHost, serverPort).sync();
-                connectedHandlerMap.put(serviceName, clientHandler);//已建立连接
-                groupSet.add(group);
+                ChannelHandler handler =
+                        bootstrap.connect(serverHost, serverPort).sync().channel().pipeline().lastContext().handler();
+                connectedHandlerMap.put(serviceName, (RPCClientHandler) handler);//已建立连接
             }
         } catch (Exception e) {
             e.printStackTrace();
-            group.shutdownGracefully();
         }
     }
 
@@ -193,9 +200,7 @@ public class Connector {
 
     //关闭所有netty线程
     public void shutDown() {
-        for (NioEventLoopGroup group : groupSet) {
-            group.shutdownGracefully();
-        }
+        group.shutdownGracefully();
     }
 
 }

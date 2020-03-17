@@ -2,6 +2,7 @@ package com.github.AllenDuke.client;
 
 
 import com.github.AllenDuke.clientService.RPCClient;
+import com.github.AllenDuke.service.Calculator;
 import com.github.AllenDuke.service.HelloService;
 
 /**
@@ -17,6 +18,8 @@ public class ClientBootstrap2 {
 
         RPCClient.init(new MyTimeOutListener());
         HelloService helloService = (HelloService) RPCClient.getServiceImpl(HelloService.class);
+        Calculator calculator = (Calculator) RPCClient.getServiceImpl(Calculator.class);
+        System.out.println(calculator.add(5, "6"));
         System.out.println(helloService.hello("allen", "duke", 2));
         //RPCClient.shutdown();
 
