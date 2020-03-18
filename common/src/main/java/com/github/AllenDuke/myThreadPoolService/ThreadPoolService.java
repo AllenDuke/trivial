@@ -4,7 +4,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
-
+//TODO 增加可扩容、缩容的线程池服务（包括线程和并发队列，以降低线程竞争的激烈程度），可用一致性hash算法
 /**
  * @author 杜科
  * @description 简单模仿线程池，原理基本一致，（原生的设计还是很巧妙、很复杂的，

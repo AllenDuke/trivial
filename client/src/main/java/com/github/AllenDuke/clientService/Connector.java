@@ -31,13 +31,23 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 @Slf4j
 public class Connector {
 
+    //两个共享的HashMap不加volatile，暂未发现问题
+
     /**
      * 已与某个RPCServer连接的RPCClientHandler，key为服务名称，如Calculator，但是有可能出现下一次要调用HelloService的时候
      * 从此map中找不到RPCClient，而事实上Calculaor所在的RPCServer也提供了HelloService的服务，但无法感知到，从而又再次与此
      * 服务端再构建了一条连接，TODO 这个问题将在下一次更新中解决（在通信的时候服务端返回它能提供的所有服务），或者不解决。
      * 注意为什么不用ConcurrentHashMap，在createAndConnectChannel有解释
      */
-    private static final Map<String, RPCClientHandler> connectedHandlerMap = new HashMap<>();
+    private static final Map<String, RPCClientHandler> connectedServiceHandlerMap = new HashMap<>();
+
+    /**
+     * 这是对connectedServiceHandlerMap的补充，key为远程主机地址，防止因不同的服务而对同一个远程主机建立多个连接。
+     * 但仍然是没能去发现远程主机能提供的所有服务的，即当注册中心返回一样的主机地址时照样会新建连接的,尽管已建立的连接中有提供
+     * 当从调用HelloService.sayHello时，从connectedServiceHandlerMap中找不到，
+     * 然后从Registry中find，当返回的远程主机地址为Calculator服务的地址一样时，那么可以从connectedChannelHandlerMap中找到
+     */
+    private static final Map<String,RPCClientHandler> connectedChannelHandlerMap=new HashMap<>();
 
     //RPCClientHandler空闲队列(空闲后与原连接断开，进入空闲队列) 并发容器防止并发构建连接
     private static final ConcurrentLinkedQueue<ChannelPipeline> idlePipelineQueue = new ConcurrentLinkedQueue();
@@ -82,9 +92,12 @@ public class Connector {
     /**
      * @param serverAddr  服务端地址，如 127.0.0.1:7000
      * @param serviceName 该服务端提供的服务的名称，如 Calculator
-     * @description: 新建一条NioSocketChannel，连上指定的服务端
+     * @description: 新建一条NioSocketChannel，连上指定的服务端，
+     * 在连接前先检查connectedServiceHandlerMap中是否已经有了该服务的连接，
+     * 如果有，直接返回，如果没有再检查connectedChannelHandlerMap中是否已经有了该远程主机的连接，
+     * 如果有，把clientHandler加到connectedServiceHandlerMap后直接返回，如果也没有则与进行连接，然后更新两个map
      * 这里避免调用同一个服务的两个线程同时创建两条连接，所以直接使用sychronized，看起来不友好，
-     * 但实际上新建的次数是不多的，因为可以重用空闲的连接。
+     * 但实际上新建的次数是不多的，因为可以从缓存中拿取或是重用空闲的连接。
      * 这里不把sychronized加到方法头上，是为了尽量减少要同步的区域，尽量让同步在轻量级锁（自旋）上完成，避免升级
      * @return: void
      * @author: 杜科
@@ -93,17 +106,24 @@ public class Connector {
     private void createAndConnectChannel(String serverAddr, String serviceName) {
         try {
             int splitIndex = serverAddr.indexOf(":");
-            String serverHost = serverAddr.substring(0, splitIndex);
+            String serverHost = serverAddr.substring(0, splitIndex);//去掉'/'
             int serverPort = Integer.valueOf(serverAddr.substring(splitIndex + 1, serverAddr.length()));
             synchronized (this) {//connector只有一个
                 // synchronized保证可见性，在其内写入的数据对其他线程可见(写回主存，其他线程再从主存中读)，所以可用HashMap
-                if (connectedHandlerMap.containsKey(serviceName)) {
+                if (connectedServiceHandlerMap.containsKey(serviceName)) {
                     log.info(serviceName + ",该服务的连接已由别的线程先创建，这里直接返回");
+                    return;
+                }
+                if(connectedChannelHandlerMap.containsKey(serverAddr)){//对外表现为新建连接，其实复用了别的服务创建的连接
+                    log.info(serverAddr+",该远程主机的连接已由别的线程先创建，" +
+                            "这里把clientHandler加到connectedServiceHandlerMap后直接返回");
+                    connectedServiceHandlerMap.put(serviceName,connectedChannelHandlerMap.get(serverAddr));
                     return;
                 }
                 ChannelHandler handler =
                         bootstrap.connect(serverHost, serverPort).sync().channel().pipeline().lastContext().handler();
-                connectedHandlerMap.put(serviceName, (RPCClientHandler) handler);//已建立连接
+                connectedServiceHandlerMap.put(serviceName, (RPCClientHandler) handler);//已建立该服务连接
+                connectedChannelHandlerMap.put(serverAddr, (RPCClientHandler) handler);//已建立该channel连接
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -146,9 +166,9 @@ public class Connector {
      * @date: 2020/3/10
      */
     private RPCClientHandler findClientHandler(String serviceName) {
-        RPCClientHandler clientHandler = connectedHandlerMap.get(serviceName);
+        RPCClientHandler clientHandler = connectedServiceHandlerMap.get(serviceName);
         if (clientHandler != null && clientHandler.getContext() != null) {//如果不是马上要断开的连接
-            //检查该生产者是否进入了该服务的黑名单
+            //检查该生产者是否进入了该服务的黑名单，以免当前clientHandler在间隙之中进入了黑名单
             Set<String> blackList = timeOutMap.get(serviceName);
             if (blackList == null || blackList.size() == 0) return clientHandler;
             String remoteAddress = clientHandler.getContext().channel().remoteAddress().toString();
@@ -164,11 +184,11 @@ public class Connector {
             while (!pipeline.channel().isActive()) ;//这里直接自旋等待，因为马上就连上了
             log.info("chanel：" + pipeline.channel() + "，成功连接上：" + pipeline.channel().remoteAddress());
             clientHandler = (RPCClientHandler) pipeline.lastContext().handler();
-            connectedHandlerMap.put(serviceName, clientHandler);//已建立连接
+            connectedServiceHandlerMap.put(serviceName, clientHandler);//已建立连接
             return clientHandler;
         }
         createAndConnectChannel(serverAddr, serviceName);
-        clientHandler = connectedHandlerMap.get(serviceName);
+        clientHandler = connectedServiceHandlerMap.get(serviceName);
         return clientHandler;
     }
 
@@ -186,8 +206,12 @@ public class Connector {
         return clientHandler.getResult(Thread.currentThread().getId());//unpark后获取结果
     }
 
-    public static Map<String, RPCClientHandler> getConnectedHandlerMap() {
-        return connectedHandlerMap;
+    public static Map<String, RPCClientHandler> getConnectedServiceHandlerMap() {
+        return connectedServiceHandlerMap;
+    }
+
+    public static Map<String, RPCClientHandler> getConnectedChannelHandlerMap() {
+        return connectedChannelHandlerMap;
     }
 
     public static ConcurrentLinkedQueue<ChannelPipeline> getIdlePipelineQueue() {

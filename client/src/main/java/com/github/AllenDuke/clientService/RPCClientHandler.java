@@ -103,7 +103,8 @@ public class RPCClientHandler extends ChannelInboundHandlerAdapter {
     }
 
     /**
-     * @description: 当断开连接时,当前RPCClientHandler要从Connector的connectedHandlerMap中移除,
+     * @description: 当断开连接时,当前RPCClientHandler要从Connector的connectedServiceHandlerMap和
+     * connectedChannelHandlerMap中移除
      * pipeline加入到idlePipelineMap
      * @param ctx
      * @return: void
@@ -113,12 +114,14 @@ public class RPCClientHandler extends ChannelInboundHandlerAdapter {
     @Override
     public void channelInactive(ChannelHandlerContext ctx) throws Exception {
         log.error(ctx.channel()+" 连接已断开，即将加入空闲连接池");
+        Connector.getConnectedChannelHandlerMap().remove(ctx.channel().remoteAddress().toString().substring(1));
         context=null;//提醒其他线程不要使用马上要断开连接
-        Map<String, RPCClientHandler> connectedHandlerMap = Connector.getConnectedHandlerMap();
-        Set<String> keySet = connectedHandlerMap.keySet();
-        for (String s : keySet) {
-            if(connectedHandlerMap.get(s)==this) connectedHandlerMap.remove(s);
+        Map<String, RPCClientHandler> connectedServiceHandlerMap = Connector.getConnectedServiceHandlerMap();
+        Set<String> keySet = connectedServiceHandlerMap.keySet();
+        for (String s : keySet) {//移除所有有关此连接的clientHandler
+            if(connectedServiceHandlerMap.get(s)==this) connectedServiceHandlerMap.remove(s);
         }
+
         Connector.getIdlePipelineQueue().add(this.getContext().pipeline());
     }
 
@@ -186,6 +189,7 @@ public class RPCClientHandler extends ChannelInboundHandlerAdapter {
                        RPCClient.listener.handle(head, (RPCClientHandler) context.handler());
                     }
                 } catch (Exception e) {//cathch包含可能在listen.handle抛出的异常
+                    // TODO: handle exception
                     e.printStackTrace();
                 }
             }

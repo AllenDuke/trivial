@@ -67,7 +67,7 @@ public class DefaultTimeOutListener implements TimeOutListener {
         String remoteAddress = clientHandler.getContext().channel().remoteAddress().toString();
         blackList.add(remoteAddress.substring(1));//去掉'/'
         log.error("生产者："+remoteAddress+" 进入服务："+clientMessage.getClassName()+" 的黑名单");
-        Connector.getConnectedHandlerMap().
+        Connector.getConnectedServiceHandlerMap().
                 remove(clientMessage.getClassName());//有可能有人同时在拿去这个clientHandler，不过问题不大，可以接收
         log.error("服务："+clientMessage.getClassName()+" 超时假断连，不让新的线程使用该生产者提供的该服务");
 
