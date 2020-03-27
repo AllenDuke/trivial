@@ -202,8 +202,21 @@ public class Connector {
      */
     public Object invoke(ClientMessage clientMessage) throws InterruptedException {
         RPCClientHandler clientHandler = findClientHandler(clientMessage.getClassName());
-        clientHandler.sendMsg(clientMessage);//caller park
+        clientHandler.sendMsg(clientMessage);//caller park TODO 增加异步模型这里不阻塞，返回future
         return clientHandler.getResult(Thread.currentThread().getId());//unpark后获取结果
+    }
+
+    /**
+     * @description: 异步调用，这里直接返回一个ResultFuture
+     * @param clientMessage 要发送的信息
+     * @return: com.github.AllenDuke.clientService.ResultFuture
+     * @author: 杜科
+     * @date: 2020/3/28
+     */
+    public ResultFuture invokeAsy(ClientMessage clientMessage){
+        RPCClientHandler clientHandler = findClientHandler(clientMessage.getClassName());
+        clientHandler.sendMsgAsy(clientMessage);
+        return new ResultFuture(clientHandler);
     }
 
     public static Map<String, RPCClientHandler> getConnectedServiceHandlerMap() {

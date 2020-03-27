@@ -79,6 +79,9 @@ public class RPCClient {
     //连接器，用于与服务端通信
     protected static Connector connector;
 
+    //异步调用标志
+    private static boolean isAsy;
+
     /**
      * @param timeOutListener 超时监听器
      * @description: 注册超时监听器，当发生超时时，将调用监听器里的相关方法
@@ -121,6 +124,7 @@ public class RPCClient {
         if (map.containsKey("timeout")) timeout = new Long((int) map.get("timeout"));
         if (map.containsKey("retryNum")) retryNum = (int) map.get("retryNum");
         if (map.containsKey("workerSize")) workerSize = (int) map.get("workerSize");
+        if(map.containsKey("isAsy")&&(int)map.get("isAsy")==1) isAsy=true;
         connector = new Connector();
     }
 
@@ -187,11 +191,13 @@ public class RPCClient {
                     className = className.substring(className.lastIndexOf(".") + 1);//去掉包名
                     ClientMessage clientMessage = new ClientMessage(Thread.currentThread().getId(),
                             className, method.getName(), args);
-                    Object result = connector.invoke(clientMessage);
+                    Object result =connector.invoke(clientMessage);//同步调用
 //                    if(result.getClass()==method.getReturnType())
                     return result;
                 });
     }
+
+    public static GenericService getGenericService(){return new GenericService();}
 
     public static void shutdown() {
         connector.shutDown();
@@ -200,5 +206,9 @@ public class RPCClient {
             RPCClientHandler.getWaiterQueue()//传入结束标志，唤醒可能正在阻塞的超时观察者
                     .add(new TimeOutEvent(null, 0));
         }
+    }
+
+    public static Connector getConnector() {
+        return connector;
     }
 }

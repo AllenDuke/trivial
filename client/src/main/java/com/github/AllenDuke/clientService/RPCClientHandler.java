@@ -40,7 +40,7 @@ public class RPCClientHandler extends ChannelInboundHandlerAdapter {
 //    private static final Map<Long, Condition> waitingThreadMap=new HashMap();
 
     //callerId与caller，park后加入，unpark后删除
-    private static final Map<Long, Thread> waiterMap=new HashMap<>();
+    private static final Map<Long, Thread> waiterMap=new HashMap<>();//todo 换ConcurrentHashMap来保证可见性
 
     //各caller的当前调用结果（这里一直会缓存上一次的结果）
     private static final Map<Long,Object> resultMap=new HashMap<>();
@@ -89,7 +89,8 @@ public class RPCClientHandler extends ChannelInboundHandlerAdapter {
             else log.error("线程——"+callerId+" 第 "+count+" 次调用失败，"
                     +serverMessage.getReselut()+" 即将返回错误提示");
             resultMap.put(callerId,serverMessage.getReselut());
-            LockSupport.unpark(waiterMap.get(callerId));
+            Thread caller = waiterMap.get(callerId);
+            LockSupport.unpark(caller);//这里如果是异步调用，那么caller先获得一次许可，避免lost-wake-up
             waiterMap.remove(callerId);
             countMap.remove(callerId);
         }else {//如果断开了连接是收不到历史信息的
@@ -136,14 +137,44 @@ public class RPCClientHandler extends ChannelInboundHandlerAdapter {
      * @date: 2020/2/27
      */
     public void sendMsg(ClientMessage clientMessage) throws InterruptedException {
+        send(clientMessage,false);
+        LockSupport.park();
+    }
+
+    /**
+     * @description: 异步发送消息，不阻塞caller
+     * @param clientMessage 要发送的消息
+     * @return: void
+     * @author: 杜科
+     * @date: 2020/3/27
+     */
+    public void sendMsgAsy(ClientMessage clientMessage){
+        send(clientMessage,true);
+    }
+
+    /**
+     * @description: 发送信息，主要用于设置一些参数。
+     * 同步或是异步都把caller加入到waiterMap当中，让netty收到信息后唤醒caller（或者给caller一个消费许可）
+     * @param clientMessage 要发送的信息
+     * @param isAsy 异步标志 true为异步，false为同步
+     * @return: void
+     * @author: 杜科
+     * @date: 2020/3/27
+     */
+    private void send(ClientMessage clientMessage,boolean isAsy){
         long callerId=clientMessage.getCallerId();
-        waiterMap.put(callerId,Thread.currentThread());//caller加入map当中
+        if(resultMap.containsKey(callerId)) LockSupport.park();//如果上一次调用的结果没有去获取，那么就先消费上一次的许可
+        /**
+         * 同步或者异步调用，caller都加入waiterMap当中，
+         * 若为异步调用，可利用此避免lost-wake-up
+         */
+        waiterMap.put(callerId,Thread.currentThread());
         countMap.put(callerId,clientMessage.getCount());
         while(context==null);//这里直接自旋等待，因为马上就连接上了
         if(RPCClient.timeout!=-1) doWatch(clientMessage);//进行超时观察
         context.writeAndFlush(JSON.toJSONString(clientMessage));//加到任务队列，netty线程发送json文本
-        log.info("线程——"+callerId+"，要发送信息"+clientMessage);
-        LockSupport.park();
+        if(!isAsy) log.info("线程——"+callerId+"，要同步发送信息"+clientMessage);
+        else log.info("线程——"+callerId+"，要异步发送信息"+clientMessage);
     }
 
     /**
@@ -198,7 +229,7 @@ public class RPCClientHandler extends ChannelInboundHandlerAdapter {
     }
 
     /**
-     * @description: 由unpark后的caller调用，返回对应的调用结果
+     * @description: 由unpark后的caller调用，返回对应的调用结果，并删除缓存（即不缓存上一次的结果）
      * caller应该注意 ClassCastException，因为当超时或异常时，将返回字符串提示。
      * @param callerId 线程id
      * @return: java.lang.Object
@@ -206,7 +237,9 @@ public class RPCClientHandler extends ChannelInboundHandlerAdapter {
      * @date: 2020/2/28
      */
     public Object getResult(long callerId){
-        return resultMap.get(callerId);
+        Object result=resultMap.get(callerId);
+        if(result!=null) resultMap.remove(callerId);
+        return result;
     }
 
     //用于在主线程关闭netty线程组时，主线程往超时观察队列中加入一个节点，让超时观察者苏醒一次去检查关闭标志，进而结束
