@@ -10,7 +10,17 @@ import com.github.AllenDuke.exception.ShutDownException;
  * @date 2020/3/27
  */
 public class GenericService {
-    public ResultFuture invoke(String className, String methodName, Object[] args){
+
+    /**
+     * @description: 这里通过设定一些参数来确定要发送的信息，发起异步调用，立即得到一个异步结果
+     * @param className 要调用的类名
+     * @param methodName 要调用的方法名
+     * @param args 参数列表
+     * @return: com.github.AllenDuke.clientService.ResultFuture
+     * @author: 杜科
+     * @date: 2020/3/28
+     */
+    public ResultFuture invokeAsy(String className, String methodName, Object[] args){
         if(RPCClient.shutdown) throw new ShutDownException("当前RPCClient已经shutdown了");
         ClientMessage clientMessage = new ClientMessage(Thread.currentThread().getId(),
                 className, methodName, args);

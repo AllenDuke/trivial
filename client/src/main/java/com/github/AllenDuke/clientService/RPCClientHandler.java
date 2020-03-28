@@ -166,7 +166,7 @@ public class RPCClientHandler extends ChannelInboundHandlerAdapter {
         if(resultMap.containsKey(callerId)) LockSupport.park();//如果上一次调用的结果没有去获取，那么就先消费上一次的许可
         /**
          * 同步或者异步调用，caller都加入waiterMap当中，
-         * 若为异步调用，可利用此避免lost-wake-up
+         * 若为异步调用，可利用此来避免lost-wake-up
          */
         waiterMap.put(callerId,Thread.currentThread());
         countMap.put(callerId,clientMessage.getCount());
