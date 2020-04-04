@@ -204,7 +204,7 @@ public class RPCClient {
         shutdown = true;//按netty线程组的关闭策略先让其完成相关工作，再去检查超时观察者
         if (timeout != -1) {//结束超时观察者
             RPCClientHandler.getWaiterQueue()//传入结束标志，唤醒可能正在阻塞的超时观察者
-                    .add(new TimeOutEvent(null, 0));
+                    .add(new TimeOutEvent(null, 0,null));
         }
     }
 

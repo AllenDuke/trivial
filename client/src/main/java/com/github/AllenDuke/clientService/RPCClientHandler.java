@@ -4,6 +4,7 @@ import com.alibaba.fastjson.JSON;
 import com.github.AllenDuke.dto.ClientMessage;
 import com.github.AllenDuke.dto.ServerMessage;
 import com.github.AllenDuke.event.TimeOutEvent;
+import com.github.AllenDuke.exception.MsgSendingFailException;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import lombok.extern.slf4j.Slf4j;
@@ -60,6 +61,7 @@ public class RPCClientHandler extends ChannelInboundHandlerAdapter {
     public void channelActive(ChannelHandlerContext ctx) throws Exception {
         log.info(ctx.channel()+" 已连接");
         this.context=ctx;
+        ctx.channel().config().setWriteBufferHighWaterMark(10*1024*1024);//设置消息高水位，防止发送队列积压而OOM
     }
 
     /**
@@ -155,6 +157,7 @@ public class RPCClientHandler extends ChannelInboundHandlerAdapter {
     /**
      * @description: 发送信息，主要用于设置一些参数。
      * 同步或是异步都把caller加入到waiterMap当中，让netty收到信息后唤醒caller（或者给caller一个消费许可）
+     * 如果已达消息高水位，将抛出异常
      * @param clientMessage 要发送的信息
      * @param isAsy 异步标志 true为异步，false为同步
      * @return: void
@@ -170,7 +173,18 @@ public class RPCClientHandler extends ChannelInboundHandlerAdapter {
          */
         waiterMap.put(callerId,Thread.currentThread());
         countMap.put(callerId,clientMessage.getCount());
+        /**
+         * 细节优化
+         * 把自旋移到这里是为了，减少自旋发生的可能性，在真正要用的时候才去判断自旋，让context尽可能已经连接。
+         * 如果已达消息高水位，发送队列积压过多消息，那么就把刚刚设置的waiterMap和countMap的参数remove然后抛异常，
+         * 异常在caller线程抛出
+         */
         while(context==null);//这里直接自旋等待，因为马上就连接上了
+        if(!context.channel().isWritable()){
+            waiterMap.remove(callerId);
+            countMap.remove(callerId);
+            throw new MsgSendingFailException("当前发送队列积压过多信息！");
+        }
         if(RPCClient.timeout!=-1) doWatch(clientMessage);//进行超时观察
         context.writeAndFlush(JSON.toJSONString(clientMessage));//加到任务队列，netty线程发送json文本
         if(!isAsy) log.info("线程——"+callerId+"，要同步发送信息"+clientMessage);
@@ -191,7 +205,7 @@ public class RPCClientHandler extends ChannelInboundHandlerAdapter {
             t1.setName("watcher");//事实上可以像waiterQueue一样在静态代码块中初始化，或者直接加synchronized
             if(watcher.compareAndSet(null,t1)) t1.start();
         }
-        waiterQueue.add(new TimeOutEvent(message,System.currentTimeMillis()));//加入超时观察队列
+        waiterQueue.add(new TimeOutEvent(message,System.currentTimeMillis(),this));//加入超时观察队列
     }
 
     //全局超时观察线程
@@ -217,7 +231,7 @@ public class RPCClientHandler extends ChannelInboundHandlerAdapter {
                         if(countMap.get(callerId)==null
                                 || countMap.get(callerId)!=count) continue;//实际上已经成功返回
                         // 发生超时，调用注册的监听器的handle方法
-                       RPCClient.listener.handle(head, (RPCClientHandler) context.handler());
+                       RPCClient.listener.handle(head, head.getClientHandler());
                     }
                 } catch (Exception e) {//cathch包含可能在listen.handle抛出的异常
                     // TODO: handle exception

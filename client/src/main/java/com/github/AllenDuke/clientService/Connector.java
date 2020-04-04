@@ -98,7 +98,6 @@ public class Connector {
      * 如果有，把clientHandler加到connectedServiceHandlerMap后直接返回，如果也没有则与进行连接，然后更新两个map
      * 这里避免调用同一个服务的两个线程同时创建两条连接，所以直接使用sychronized，看起来不友好，
      * 但实际上新建的次数是不多的，因为可以从缓存中拿取或是重用空闲的连接。
-     * 这里不把sychronized加到方法头上，是为了尽量减少要同步的区域，尽量让同步在轻量级锁（自旋）上完成，避免升级
      * @return: void
      * @author: 杜科
      * @date: 2020/3/10
@@ -108,8 +107,14 @@ public class Connector {
             int splitIndex = serverAddr.indexOf(":");
             String serverHost = serverAddr.substring(0, splitIndex);//去掉'/'
             int serverPort = Integer.valueOf(serverAddr.substring(splitIndex + 1, serverAddr.length()));
+            /**
+             * 细节优化
+             * 这里不把sychronized加到方法头上，是为了尽量减少要同步的区域，尽量让同步在轻量级锁（自旋）上完成，避免升级
+             *
+             * synchronized保证可见性，进入前清空缓存，再从主存中读，在其内写入的数据对其他线程可见(写回主存，
+             * 其他线程再从主存中读)，所以可用HashMap
+             */
             synchronized (this) {//connector只有一个
-                // synchronized保证可见性，在其内写入的数据对其他线程可见(写回主存，其他线程再从主存中读)，所以可用HashMap
                 if (connectedServiceHandlerMap.containsKey(serviceName)) {
                     log.info(serviceName + ",该服务的连接已由别的线程先创建，这里直接返回");
                     return;

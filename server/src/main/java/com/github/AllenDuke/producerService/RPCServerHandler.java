@@ -2,17 +2,20 @@ package com.github.AllenDuke.producerService;
 
 
 import com.alibaba.fastjson.JSON;
+import com.github.AllenDuke.business.InvokeErrorNode;
 import com.github.AllenDuke.business.InvokeHandler;
 import com.github.AllenDuke.business.InvokeTask;
 import com.github.AllenDuke.dto.ClientMessage;
 import com.github.AllenDuke.dto.ServerMessage;
 import com.github.AllenDuke.exception.ConnectionIdleException;
 import com.github.AllenDuke.myThreadPoolService.ThreadPoolService;
+import com.github.AllenDuke.business.LRU;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.handler.timeout.IdleStateEvent;
 import lombok.extern.slf4j.Slf4j;
 
+import java.net.SocketAddress;
 import java.util.concurrent.ThreadPoolExecutor;
 
 /**
@@ -32,6 +35,33 @@ public class RPCServerHandler extends ChannelInboundHandlerAdapter {
 
     private static final ThreadPoolService poolService=RPCServer.poolService;
 
+    // todo 修改以主机地址为单位
+    private static volatile LRU<String,InvokeErrorNode> lru;
+
+    /**
+     * @description: 检查每一个连上来的客户端在lru中的情况，如果一天内调用错误次数已达到100次，将立马断开连接
+     * @param ctx
+     * @return: void
+     * @author: 杜科
+     * @date: 2020/4/4
+     */
+    @Override
+    public void channelActive(ChannelHandlerContext ctx) throws Exception {
+        if(lru!=null){
+            SocketAddress remoteAddress = ctx.channel().remoteAddress();
+            String addr=remoteAddress.toString();
+            addr=addr.substring(1,addr.indexOf(":"));
+            InvokeErrorNode errorNode = lru.get(addr);
+            if(errorNode==null||System.currentTimeMillis()-errorNode.getLastTime()>1000*60*60*24
+                    ||errorNode.getErrCount()<100) return;
+            log.error("该远程客户端一天内调用错误次数达到100次，认为已受到了该客户端的攻击，" +
+                    "24小时内不允许再次连接，将告知客户端并断开连接");
+            ServerMessage serverMessage=new ServerMessage(0,0,false,
+                    "请24小时之后再试！");
+            ctx.writeAndFlush(JSON.toJSONString(serverMessage));
+            ctx.close();
+        }
+    }
 
     /**
      * @description: 由netty线程负责接收来自客户端的信息，解析信息，调用相关方法，写回结果
@@ -45,12 +75,13 @@ public class RPCServerHandler extends ChannelInboundHandlerAdapter {
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
         log.info("收到信息：" + msg + "，准备解码，调用服务");
-        ClientMessage clientMessage=null;
+        ClientMessage clientMessage;
         try{
             clientMessage = JSON.parseObject((String) msg, ClientMessage.class);
         }catch (Exception e){
             log.error("解析异常，放弃本次解析任务，即将通知客户端",e);
             ctx.writeAndFlush("服务器解析异常");
+            handleInvokeException(ctx,e);
             return;
         }
         clientMessage.setClassName(clientMessage.getClassName()+"Impl");//加上后缀
@@ -62,7 +93,7 @@ public class RPCServerHandler extends ChannelInboundHandlerAdapter {
             poolService.execute(new InvokeTask(clientMessage,invokeHandler,ctx));
             return;
         }
-        Object result=null;
+        Object result;
         try {
             result= invokeHandler.handle(clientMessage);
         }catch (Exception e){
@@ -71,6 +102,7 @@ public class RPCServerHandler extends ChannelInboundHandlerAdapter {
                     ,clientMessage.getCount()
                     , false,"实现方法调用异常");
             ctx.writeAndFlush(JSON.toJSONString(serverMessage));
+            handleInvokeException(ctx,e);
             return;
         }
         ServerMessage serverMessage=new ServerMessage(clientMessage.getCallerId()
@@ -82,6 +114,37 @@ public class RPCServerHandler extends ChannelInboundHandlerAdapter {
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
         ctx.close();
+    }
+
+    public void handleInvokeException(ChannelHandlerContext ctx, Throwable cause){
+        if(lru==null){//volatile double-check防止指令重排序拿到半初始化对象
+            synchronized (invokeHandler){
+                if(lru==null) lru=new LRU<>();
+            }
+        }
+        SocketAddress remoteAddress = ctx.channel().remoteAddress();
+        String addr=remoteAddress.toString();
+        addr=addr.substring(1,addr.indexOf(":"));
+        InvokeErrorNode errorNode = lru.get(addr);
+        /**
+         * 使用synchronized暴力地解决并发问题，todo 下次优化将使用自实现的ConcurrentLinkedHashMap来做LRU
+         */
+        if(errorNode==null||System.currentTimeMillis()-errorNode.getLastTime()>1000*60*60*24) {
+            errorNode=new InvokeErrorNode(System.currentTimeMillis(),1);
+            lru.put(addr,errorNode);
+        } else{
+            errorNode.setErrCount(errorNode.getErrCount()+1);
+            lru.put(addr,errorNode);
+        }
+        /**
+         * 当同一批同时达到时，将触发多次，但并无实际影响，close方法可以调用多次而只生效一次
+         */
+        if(errorNode.getErrCount()>=100) {
+            log.error("该远程客户端一天内调用错误次数达到100次，认为已受到了该客户端的攻击，" +
+                    "24小时内不允许再次连接，将告知客户端并断开连接",cause);
+            ctx.close();
+        }
+        return;
     }
 
     @Override

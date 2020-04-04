@@ -21,21 +21,24 @@ public class ClientBootstrap1 {
         RPCClient.init();
         GenericService genericService = RPCClient.getGenericService();
         Calculator calculator = (Calculator) RPCClient.getServiceImpl(Calculator.class);
-        new Thread(() -> {
-            ResultFuture<Integer> future = genericService.invokeAsy("Calculator", "add",
-                    new Object[]{1, "2"});
-            try {
-                System.out.println(future.get());
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        }).start();
+        //todo 当创建大量线程（如30个线程）同时发送消息时，发送完信息就主动强制断开了连接（服务端无法感知）？
+        for (int i = 0; i < 5; i++) {
+            new Thread(() -> {
+                ResultFuture<Integer> future = genericService.invokeAsy("Calculator", "add",
+                        new Object[]{1, "2", 3});
+            }).start();
+        }
+
+        Thread.sleep(11000);
+        ResultFuture<Integer> future = genericService.invokeAsy("Calculator", "add",
+                new Object[]{1, "2", 3});
+
         //TODO 两线程并发时依然有错误，如消息丢失、漏发，有可能是别的原因，不是同步出现问题，因为在解决另一bug后
         //TODO 此种问题即似乎漏掉了略过2*7，暂未再现，难道是重排序？
-        new Thread(()->{
+        new Thread(() -> {
             try {
                 calculator.multipy(2, 7);
-            }catch (Exception e){
+            } catch (Exception e) {
                 System.out.println("调用超时");
             }
             try {
@@ -44,15 +47,15 @@ public class ClientBootstrap1 {
 
             }
 
-            ResultFuture<Integer> future = genericService.invokeAsy("Calculator", "add",
+            ResultFuture<Integer> future1 = genericService.invokeAsy("Calculator", "add",
                     new Object[]{3, "4"});
             try {
-                System.out.println(future.get(10, TimeUnit.MILLISECONDS)==null);
+                System.out.println(future.get(10, TimeUnit.MILLISECONDS) == null);
             } catch (Exception e) {
                 e.printStackTrace();
             }
 
-        }).start();
+        });
 //        RPCClient.shutdown();
     }
 

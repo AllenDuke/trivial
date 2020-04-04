@@ -4,6 +4,7 @@ import com.alibaba.fastjson.JSON;
 import com.github.AllenDuke.dto.ClientMessage;
 import com.github.AllenDuke.dto.ServerMessage;
 import com.github.AllenDuke.exception.MethodNotFoundException;
+import com.github.AllenDuke.producerService.RPCServerHandler;
 import io.netty.channel.ChannelHandlerContext;
 import lombok.extern.slf4j.Slf4j;
 
@@ -42,6 +43,8 @@ public class InvokeTask implements Runnable {
                     ,clientMessage.getCount()
                     , false,"找不到要调用的类，请检查类名");
             ctx.writeAndFlush(JSON.toJSONString(serverMessage));
+            RPCServerHandler handler = (RPCServerHandler) ctx.handler();
+            handler.handleInvokeException(ctx,e);
             return;
         } catch(MethodNotFoundException e){
             log.error("找不到要调用的方法，放弃本次调用，即将通知调用者",e);
@@ -49,6 +52,8 @@ public class InvokeTask implements Runnable {
                     ,clientMessage.getCount()
                     , false,"找不到要调用的方法，请检查方法名和参数");
             ctx.writeAndFlush(JSON.toJSONString(serverMessage));
+            RPCServerHandler handler = (RPCServerHandler) ctx.handler();
+            handler.handleInvokeException(ctx,e);
             return;
         } catch (Exception e){
             log.error("方法调用异常，放弃本次调用，即将通知调用者",e);
@@ -56,6 +61,8 @@ public class InvokeTask implements Runnable {
                     ,clientMessage.getCount()
                     , false,"服务器的实现方法调用异常");
             ctx.writeAndFlush(JSON.toJSONString(serverMessage));
+            RPCServerHandler handler = (RPCServerHandler) ctx.handler();
+            handler.handleInvokeException(ctx,e);
             return;
         }
         ServerMessage serverMessage=new ServerMessage(clientMessage.getCallerId()

@@ -17,7 +17,7 @@ public class ResultFuture<V> implements Future<V> {
     //异步结果所处的channel
     private RPCClientHandler clientHandler;
 
-    public ResultFuture(RPCClientHandler clientHandler){
+    public  ResultFuture(RPCClientHandler clientHandler){
         this.clientHandler=clientHandler;
     }
 

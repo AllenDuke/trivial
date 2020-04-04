@@ -1,6 +1,7 @@
 package com.github.AllenDuke.event;
 
 import com.github.AllenDuke.clientService.RPCClient;
+import com.github.AllenDuke.clientService.RPCClientHandler;
 import com.github.AllenDuke.dto.ClientMessage;
 
 /**
@@ -14,10 +15,12 @@ public class TimeOutEvent {
     ClientMessage message;//应尽量缩减message的信息，避免不必要的传输
     long createTime;
     int retryNum;
+    RPCClientHandler clientHandler;//所处的连接
 
-    public TimeOutEvent(ClientMessage message, long createTime) {
+    public TimeOutEvent(ClientMessage message, long createTime, RPCClientHandler clientHandler) {
         this.message=message;
         this.createTime = createTime;
+        this.clientHandler=clientHandler;
         this.retryNum= RPCClient.retryNum;
     }
 
@@ -43,6 +46,10 @@ public class TimeOutEvent {
 
     public void setRetryNum(int retryNum) {
         this.retryNum = retryNum;
+    }
+
+    public RPCClientHandler getClientHandler() {
+        return clientHandler;
     }
 
     @Override
