@@ -41,7 +41,7 @@ public class RPCClientHandler extends ChannelInboundHandlerAdapter {
 //    private static final Map<Long, Condition> waitingThreadMap=new HashMap();
 
     //callerId与caller，park后加入，unpark后删除
-    private static final Map<Long, Thread> waiterMap=new HashMap<>();//todo 换ConcurrentHashMap来保证可见性
+    private static final Map<Long, Thread> waiterMap=new HashMap<>();// todo 换ConcurrentHashMap来保证可见性
 
     //各caller的当前调用结果（这里一直会缓存上一次的结果）
     private static final Map<Long,Object> resultMap=new HashMap<>();
@@ -102,6 +102,7 @@ public class RPCClientHandler extends ChannelInboundHandlerAdapter {
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
+        log.error("捕获到异常，即将关闭连接！",cause);
         ctx.close();
     }
 
@@ -118,14 +119,21 @@ public class RPCClientHandler extends ChannelInboundHandlerAdapter {
     public void channelInactive(ChannelHandlerContext ctx) throws Exception {
         log.error(ctx.channel()+" 连接已断开，即将加入空闲连接池");
         Connector.getConnectedChannelHandlerMap().remove(ctx.channel().remoteAddress().toString().substring(1));
-        context=null;//提醒其他线程不要使用马上要断开连接
+        Connector.getIdlePipelineQueue().add(this.getContext().pipeline());
+        /**
+         * 提醒其他后来的线程不要使用马上要断开连接。
+         * 如果是异常断开，那么使用该连接的其他线程将得不到结果（不过会被超时扫描线程唤醒）
+         */
+        context=null;
         Map<String, RPCClientHandler> connectedServiceHandlerMap = Connector.getConnectedServiceHandlerMap();
         Set<String> keySet = connectedServiceHandlerMap.keySet();
         for (String s : keySet) {//移除所有有关此连接的clientHandler
             if(connectedServiceHandlerMap.get(s)==this) connectedServiceHandlerMap.remove(s);
         }
-
-        Connector.getIdlePipelineQueue().add(this.getContext().pipeline());
+        /**
+         * 当断开连接后也要把已经解码好的信息fireChannelRead
+         */
+        super.channelInactive(ctx);
     }
 
 

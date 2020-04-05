@@ -21,14 +21,13 @@ public class ClientBootstrap1 {
         RPCClient.init();
         GenericService genericService = RPCClient.getGenericService();
         Calculator calculator = (Calculator) RPCClient.getServiceImpl(Calculator.class);
-        //todo 当创建大量线程（如30个线程）同时发送消息时，发送完信息就主动强制断开了连接（服务端无法感知）？
-        for (int i = 0; i < 5; i++) {
-            new Thread(() -> {
+        new Thread(() -> {
+            for (int i = 0; i < 30; i++) {
                 ResultFuture<Integer> future = genericService.invokeAsy("Calculator", "add",
                         new Object[]{1, "2", 3});
-            }).start();
-        }
-
+                Thread.yield();
+            }
+        }).start();
         Thread.sleep(11000);
         ResultFuture<Integer> future = genericService.invokeAsy("Calculator", "add",
                 new Object[]{1, "2", 3});

@@ -46,7 +46,7 @@ public class ThreadPoolService {
      * 后者适合任务频繁提交（即自旋时间少）的情况
      */
     private ConcurrentLinkedQueue<Runnable> taskQueue = new ConcurrentLinkedQueue();//并发任务队列，控制并发拉取
-    private int queueCapacity = 10;//任务队列容量
+    private int queueCapacity = 150;//任务队列容量
     private AtomicInteger queueSize = new AtomicInteger(0);//当前任务队列大小，原子变量控制并发提交
     private RejectHandler rejectHandler = new DefaultRejectHandler();//拒绝策略
     private ConcurrentLinkedQueue<CoreThread> freeCorePool = new ConcurrentLinkedQueue();//空闲核心线程队列

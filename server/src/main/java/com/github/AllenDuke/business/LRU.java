@@ -36,13 +36,4 @@ public class LRU<K,V> extends LinkedHashMap<K,V> {
         return this.size()>capacity||System.currentTimeMillis()-errorNode.getLastTime()>1000*60*60*24;
     }
 
-    @Override
-    public synchronized V get(Object key) {
-        return super.get(key);
-    }
-
-    @Override
-    public synchronized V put(K key, V value) {//防止多个线程并发插入 todo 自实现一个ConcurrentLinkedHashMap
-        return super.put(key, value);
-    }
 }

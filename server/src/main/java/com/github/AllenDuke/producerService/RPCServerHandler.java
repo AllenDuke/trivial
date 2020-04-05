@@ -35,7 +35,6 @@ public class RPCServerHandler extends ChannelInboundHandlerAdapter {
 
     private static final ThreadPoolService poolService=RPCServer.poolService;
 
-    // todo 修改以主机地址为单位
     private static volatile LRU<String,InvokeErrorNode> lru;
 
     /**
@@ -113,6 +112,7 @@ public class RPCServerHandler extends ChannelInboundHandlerAdapter {
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
+        log.error("捕获到异常，即将关闭连接！",cause);
         ctx.close();
     }
 
@@ -123,18 +123,25 @@ public class RPCServerHandler extends ChannelInboundHandlerAdapter {
             }
         }
         SocketAddress remoteAddress = ctx.channel().remoteAddress();
+        if(remoteAddress==null) {
+            log.info("连接已被远程客户端断开！");
+            return;
+        }
         String addr=remoteAddress.toString();
         addr=addr.substring(1,addr.indexOf(":"));
-        InvokeErrorNode errorNode = lru.get(addr);
-        /**
-         * 使用synchronized暴力地解决并发问题，todo 下次优化将使用自实现的ConcurrentLinkedHashMap来做LRU
-         */
-        if(errorNode==null||System.currentTimeMillis()-errorNode.getLastTime()>1000*60*60*24) {
-            errorNode=new InvokeErrorNode(System.currentTimeMillis(),1);
-            lru.put(addr,errorNode);
-        } else{
-            errorNode.setErrCount(errorNode.getErrCount()+1);
-            lru.put(addr,errorNode);
+        InvokeErrorNode errorNode;
+        synchronized (lru){
+            /**
+             * 使用synchronized暴力地解决并发问题，todo 下次优化将使用自实现的ConcurrentLinkedHashMap来做LRU
+             */
+            errorNode = lru.get(addr);
+            if(errorNode==null||System.currentTimeMillis()-errorNode.getLastTime()>1000*60*60*24) {
+                errorNode=new InvokeErrorNode(System.currentTimeMillis(),1);
+                lru.put(addr,errorNode);
+            } else{
+                errorNode.setErrCount(errorNode.getErrCount()+1);
+                lru.put(addr,errorNode);
+            }
         }
         /**
          * 当同一批同时达到时，将触发多次，但并无实际影响，close方法可以调用多次而只生效一次
