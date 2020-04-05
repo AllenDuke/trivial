@@ -79,18 +79,29 @@ public class RPCServerHandler extends ChannelInboundHandlerAdapter {
             clientMessage = JSON.parseObject((String) msg, ClientMessage.class);
         }catch (Exception e){
             log.error("解析异常，放弃本次解析任务，即将通知客户端",e);
-            ctx.writeAndFlush("服务器解析异常");
+            ServerMessage serverMessage=new ServerMessage(0
+                    ,0, false,"服务器解析异常");
+            ctx.writeAndFlush(JSON.toJSONString(serverMessage));
             handleInvokeException(ctx,e);
             return;
         }
         clientMessage.setClassName(clientMessage.getClassName()+"Impl");//加上后缀
-        if(RPCServer.businessPoolModel==1) {
-            executor.execute(new InvokeTask(clientMessage,invokeHandler,ctx));
-            return;
-        }
-        if(RPCServer.businessPoolModel==2){
-            poolService.execute(new InvokeTask(clientMessage,invokeHandler,ctx));
-            return;
+        if(RPCServer.businessPoolModel>0){//如果有线程池
+            try{
+                if(RPCServer.businessPoolModel==1)
+                    executor.execute(new InvokeTask(clientMessage,invokeHandler,ctx));
+                if(RPCServer.businessPoolModel==2)
+                    executor.execute(new InvokeTask(clientMessage,invokeHandler,ctx));
+            }catch (Exception e){
+                log.error("线程池拒绝任务，即将通知客户端",e);
+                ServerMessage serverMessage=new ServerMessage(clientMessage.getCallerId()
+                        ,clientMessage.getCount()
+                        , false,"服务器繁忙！");
+                ctx.writeAndFlush(JSON.toJSONString(serverMessage));
+                handleInvokeException(ctx,e);
+            }finally {
+                return;
+            }
         }
         Object result;
         try {
@@ -116,6 +127,14 @@ public class RPCServerHandler extends ChannelInboundHandlerAdapter {
         ctx.close();
     }
 
+    /**
+     * @description: 这里只是负责记录远程客户端调用异常的次数，并作出处理，如达阈值后将断开连接。
+     * @param ctx 调用所处的连接
+     * @param cause 具体的调用异常
+     * @return: void
+     * @author: 杜科
+     * @date: 2020/4/5
+     */
     public void handleInvokeException(ChannelHandlerContext ctx, Throwable cause){
         if(lru==null){//volatile double-check防止指令重排序拿到半初始化对象
             synchronized (invokeHandler){
