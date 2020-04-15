@@ -24,7 +24,7 @@ public class ThreadPoolService {
     private int coreSize = 2;//核心线程数
     private int maxSize = 4;//最大线程数
     private long keepAlive = 2 * 1000;//空闲时间，单位毫秒
-    private boolean isShutDown = false;
+    private volatile boolean isShutDown = false;
     /**
      * ThreadPoolExecutor用的是BlockingQueue(可设置超时等待)，这里用的ConcurrentLinkedQueue
      * 二者设计差别在于:

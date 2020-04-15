@@ -82,23 +82,23 @@ public class RPCServerHandler extends ChannelInboundHandlerAdapter {
             ServerMessage serverMessage=new ServerMessage(0
                     ,0, false,"服务器解析异常");
             ctx.writeAndFlush(JSON.toJSONString(serverMessage));
-            handleInvokeException(ctx,e);
+            recordInvokeException(ctx,e);
             return;
         }
         clientMessage.setClassName(clientMessage.getClassName()+"Impl");//加上后缀
         if(RPCServer.businessPoolModel>0){//如果有线程池
             try{
-                if(RPCServer.businessPoolModel==1)
+                if(RPCServer.businessPoolModel==1)//jdk线程池
                     executor.execute(new InvokeTask(clientMessage,invokeHandler,ctx));
-                if(RPCServer.businessPoolModel==2)
-                    executor.execute(new InvokeTask(clientMessage,invokeHandler,ctx));
+                if(RPCServer.businessPoolModel==2)//自实现线程池
+                    poolService.execute(new InvokeTask(clientMessage,invokeHandler,ctx));
             }catch (Exception e){
                 log.error("线程池拒绝任务，即将通知客户端",e);
                 ServerMessage serverMessage=new ServerMessage(clientMessage.getCallerId()
                         ,clientMessage.getCount()
                         , false,"服务器繁忙！");
                 ctx.writeAndFlush(JSON.toJSONString(serverMessage));
-                handleInvokeException(ctx,e);
+                recordInvokeException(ctx,e);
             }finally {
                 return;
             }
@@ -112,7 +112,7 @@ public class RPCServerHandler extends ChannelInboundHandlerAdapter {
                     ,clientMessage.getCount()
                     , false,"实现方法调用异常");
             ctx.writeAndFlush(JSON.toJSONString(serverMessage));
-            handleInvokeException(ctx,e);
+            recordInvokeException(ctx,e);
             return;
         }
         ServerMessage serverMessage=new ServerMessage(clientMessage.getCallerId()
@@ -135,7 +135,7 @@ public class RPCServerHandler extends ChannelInboundHandlerAdapter {
      * @author: 杜科
      * @date: 2020/4/5
      */
-    public void handleInvokeException(ChannelHandlerContext ctx, Throwable cause){
+    public void recordInvokeException(ChannelHandlerContext ctx, Throwable cause){
         if(lru==null){//volatile double-check防止指令重排序拿到半初始化对象
             synchronized (invokeHandler){
                 if(lru==null) lru=new LRU<>();
@@ -151,7 +151,8 @@ public class RPCServerHandler extends ChannelInboundHandlerAdapter {
         InvokeErrorNode errorNode;
         synchronized (lru){
             /**
-             * 使用synchronized暴力地解决并发问题，todo 下次优化将使用自实现的ConcurrentLinkedHashMap来做LRU
+             * 使用synchronized暴力地解决并发问题，但正常情况下这种并发是不高的，而异常情况发生的概率也不大
+             * todo 下次优化将使用自实现的ConcurrentLinkedHashMap来做LRU
              */
             errorNode = lru.get(addr);
             if(errorNode==null||System.currentTimeMillis()-errorNode.getLastTime()>1000*60*60*24) {
