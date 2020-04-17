@@ -61,7 +61,8 @@ public class RPCClientHandler extends ChannelInboundHandlerAdapter {
     public void channelActive(ChannelHandlerContext ctx) throws Exception {
         log.info(ctx.channel()+" 已连接");
         this.context=ctx;
-        ctx.channel().config().setWriteBufferHighWaterMark(10*1024*1024);//设置消息高水位，防止发送队列积压而OOM
+        //设置消息高水位，防止发送队列积压而OOM
+        ctx.channel().config().setWriteBufferHighWaterMark(RPCClient.writeBufferHighWaterMark);
     }
 
     /**

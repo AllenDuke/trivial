@@ -17,6 +17,7 @@ import org.apache.zookeeper.ZooDefs;
 import org.apache.zookeeper.ZooKeeper;
 
 import java.lang.reflect.Proxy;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.locks.LockSupport;
 
@@ -82,6 +83,12 @@ public class RPCClient {
     //异步调用标志
     private static boolean isAsy;
 
+    //代理对象的缓存，key为类名如Calculator，value为jdk动态代理的实例
+    private static Map<String,Object> serviceProxys=new HashMap<>();
+
+    //消息发送队列高水位
+    protected static int writeBufferHighWaterMark=10*1024*1024;
+
     /**
      * @param timeOutListener 超时监听器
      * @description: 注册超时监听器，当发生超时时，将调用监听器里的相关方法
@@ -125,6 +132,8 @@ public class RPCClient {
         if (map.containsKey("retryNum")) retryNum = (int) map.get("retryNum");
         if (map.containsKey("workerSize")) workerSize = (int) map.get("workerSize");
         if(map.containsKey("isAsy")&&(int)map.get("isAsy")==1) isAsy=true;
+        if(map.containsKey("writeBufferHighWaterMark"))
+            writeBufferHighWaterMark=(int) map.get("writeBufferHighWaterMark");
         connector = new Connector();
     }
 
@@ -182,19 +191,32 @@ public class RPCClient {
     public static Object getServiceImpl(final Class<?> serivceClass) {
         if (!isInit) throw new InitException("还没有init");
         if(shutdown) throw new ShutDownException("当前RPCClient已经shutdown了");
-        return Proxy.newProxyInstance(Thread.currentThread().getContextClassLoader(),
-                new Class<?>[]{serivceClass}, (proxy, method, args) -> {
-                    //lamda表达式，匿名内部类实现InvokeInhandler接口，重写invoke方法
+        Object proxyInstance = serviceProxys.get(serivceClass.getName());
+        /**
+         * 这里需要用双重检测锁，仅用CunrrentHashMap是做不到只实例化一次，而用双重检测锁后不需用ConcurrentHashMap。
+         */
+        if(proxyInstance==null){
+            synchronized (serviceProxys){
+                proxyInstance = serviceProxys.get(serivceClass.getName());
+                if(proxyInstance==null){
+                    proxyInstance= Proxy.newProxyInstance(Thread.currentThread().getContextClassLoader(),
+                            new Class<?>[]{serivceClass}, (proxy, method, args) -> {
+                                //lamda表达式，匿名内部类实现InvokeInhandler接口，重写invoke方法
 
-                    if(shutdown) throw new ShutDownException("当前RPCClient已经shutdown了");
-                    String className = serivceClass.getName();
-                    className = className.substring(className.lastIndexOf(".") + 1);//去掉包名
-                    ClientMessage clientMessage = new ClientMessage(Thread.currentThread().getId(),
-                            className, method.getName(), args);
-                    Object result =connector.invoke(clientMessage);//同步调用
+                                if(shutdown) throw new ShutDownException("当前RPCClient已经shutdown了");
+                                String className = serivceClass.getName();
+                                className = className.substring(className.lastIndexOf(".") + 1);//去掉包名
+                                ClientMessage clientMessage = new ClientMessage(Thread.currentThread().getId(),
+                                        className, method.getName(), args);
+                                Object result =connector.invoke(clientMessage);//同步调用
 //                    if(result.getClass()==method.getReturnType())
-                    return result;
-                });
+                                return result;
+                            });
+                    serviceProxys.put(serivceClass.getName(),proxyInstance);
+                }
+            }
+        }
+        return proxyInstance;
     }
 
     public static GenericService getGenericService(){return new GenericService();}
