@@ -27,6 +27,9 @@ public class InvokeHandler {
     //key为实现方法的全限定名
     private static final Map<String, Method> methodMap = new HashMap<>();
 
+    //key为实现类名，value为实现类的实例
+    private static Map<String,Object> serviceObjects=new HashMap<>();
+
     /**
      * @description: 找到要调用的类，先从缓存中找，找不到再Class.forName()加载，会抛出ClassNotFoundException
      * @param className 类的全限定名
@@ -36,6 +39,9 @@ public class InvokeHandler {
      */
     public Class findClass(String className) throws ClassNotFoundException {
         Class serviceImpl = classMap.get(className);
+        /**
+         * 并发时可能会进行多次put操作，但问题不大，put的是同一个Class对象。
+         */
         if(serviceImpl==null) serviceImpl= Class.forName(className);//找不到将抛异常
         classMap.put(className,serviceImpl);
         return serviceImpl;
@@ -66,6 +72,9 @@ public class InvokeHandler {
                     }
                     if(match) {
                         method=method1;
+                        /**
+                         * 并发时可能会进行多次put操作，但问题不大，put的是同一个Method对象。
+                         */
                         methodMap.put(serviceImpl.getName()+"."+methodName+argsTypeName, method);
                         break;
                     }
@@ -87,7 +96,19 @@ public class InvokeHandler {
      */
     public Object invoke(Class serviceImpl,Method method,Object[] args) throws IllegalAccessException,
             InstantiationException, InvocationTargetException {
-        return method.invoke(serviceImpl.newInstance(), args );
+        Object o = serviceObjects.get(serviceImpl.getName());
+        /**
+         * double-check使得只创建一个实例，而ConcurrentHashMap做不到
+         */
+        if(o==null){
+            synchronized (serviceObjects){
+                if(o==null){
+                    o=serviceImpl.newInstance();
+                    serviceObjects.put(serviceImpl.getName(),o);
+                }
+            }
+        }
+        return method.invoke(o, args);
     }
 
     /**

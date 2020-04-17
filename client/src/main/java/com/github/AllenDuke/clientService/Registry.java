@@ -71,6 +71,7 @@ public class Registry {
                 else i++;
             }
         }
+        if(children==null||children.size()==0) throw new ServiceNotFoundException("找不到服务："+serviceName);
         addrMem.put(serviceName,children);//更新本地存根（过滤黑名单）
         int rand= new Random().nextInt(children.size());//随机返回children.size为上界的非负数
         return children.get(rand);
