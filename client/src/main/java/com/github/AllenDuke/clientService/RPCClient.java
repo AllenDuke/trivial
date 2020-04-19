@@ -208,6 +208,17 @@ public class RPCClient {
                                 className = className.substring(className.lastIndexOf(".") + 1);//去掉包名
                                 ClientMessage clientMessage = new ClientMessage(Thread.currentThread().getId(),
                                         className, method.getName(), args);
+                                /**
+                                 * 如果没有返回值，就异步调用，不阻塞调用者线程。
+                                 * todo 调用失败时如何处理？
+                                 */
+                                if(method.getReturnType()==void.class) {
+                                    connector.invokeAsy(clientMessage);
+                                    return null;
+//                                    Object result =connector.invoke(clientMessage);//同步调用
+//                                    if(result.getClass()!=Void.Type()) throw new RuntimeException("调用异常");
+//                                    return null;
+                                }
                                 Object result =connector.invoke(clientMessage);//同步调用
 //                    if(result.getClass()==method.getReturnType())
                                 return result;

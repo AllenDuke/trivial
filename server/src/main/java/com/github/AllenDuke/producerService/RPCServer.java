@@ -8,10 +8,7 @@ import com.github.AllenDuke.util.YmlUtil;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
-import io.netty.channel.ChannelFuture;
-import io.netty.channel.ChannelInitializer;
-import io.netty.channel.ChannelPipeline;
-import io.netty.channel.EventLoopGroup;
+import io.netty.channel.*;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
@@ -166,6 +163,7 @@ public class RPCServer {
         EventLoopGroup workerGroup = new NioEventLoopGroup(workerSize);
         try {
             ServerBootstrap serverBootstrap = new ServerBootstrap();
+            //serverBootstrap.childOption(ChannelOption.SO_KEEPALIVE,true);//开启tcp keepAlive
             serverBootstrap.group(bossGroup, workerGroup)
                     .channel(NioServerSocketChannel.class)//水平触发，EpollServerSocketChannel边缘触发
                     .childHandler(//作用于workerGroup

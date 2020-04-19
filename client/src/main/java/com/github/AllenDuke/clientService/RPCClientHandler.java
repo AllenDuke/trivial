@@ -10,6 +10,7 @@ import io.netty.channel.ChannelInboundHandlerAdapter;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
@@ -128,8 +129,13 @@ public class RPCClientHandler extends ChannelInboundHandlerAdapter {
         context=null;
         Map<String, RPCClientHandler> connectedServiceHandlerMap = Connector.getConnectedServiceHandlerMap();
         Set<String> keySet = connectedServiceHandlerMap.keySet();
+        Set<String> deleteSet=new HashSet<>();
         for (String s : keySet) {//移除所有有关此连接的clientHandler
-            if(connectedServiceHandlerMap.get(s)==this) connectedServiceHandlerMap.remove(s);
+            if(connectedServiceHandlerMap.get(s)==this)
+                deleteSet.add(s);
+        }
+        for (String s : deleteSet) {
+            connectedServiceHandlerMap.remove(s);
         }
         /**
          * 当断开连接后也要把已经解码好的信息fireChannelRead

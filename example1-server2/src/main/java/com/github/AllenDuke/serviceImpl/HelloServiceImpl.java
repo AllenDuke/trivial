@@ -14,6 +14,10 @@ public class HelloServiceImpl implements HelloService {
         return "你好，"+a+" and "+b+" "+num;
     }
 
+    public void sayHello(String name) {
+        System.out.println("hello " + name);
+    }
+
     //线程安全的单例懒加载模式
     public static HelloServiceImpl getInstance(){
         return HelloServiceImplInner.getHelloService();

@@ -9,4 +9,6 @@ package com.github.AllenDuke.service;
 public interface HelloService {
 
     String hello(String name1, String name2, Integer num);
+
+    void sayHello(String name);
 }

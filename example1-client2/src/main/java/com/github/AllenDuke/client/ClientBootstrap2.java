@@ -21,6 +21,9 @@ public class ClientBootstrap2 {
         Calculator calculator = (Calculator) RPCClient.getServiceImpl(Calculator.class);
         System.out.println(calculator.add(5, "6"));
         System.out.println(helloService.hello("allen", "duke", 2));
+        for (int i = 0; i < 10; i++) {
+            helloService.sayHello("allen");
+        }
         //RPCClient.shutdown();
 
     }
