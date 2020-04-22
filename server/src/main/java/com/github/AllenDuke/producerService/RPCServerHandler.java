@@ -5,13 +5,13 @@ import com.alibaba.fastjson.JSON;
 import com.github.AllenDuke.business.InvokeErrorNode;
 import com.github.AllenDuke.business.InvokeHandler;
 import com.github.AllenDuke.business.InvokeTask;
+import com.github.AllenDuke.business.LRU;
 import com.github.AllenDuke.dto.ClientMessage;
 import com.github.AllenDuke.dto.ServerMessage;
 import com.github.AllenDuke.exception.ConnectionIdleException;
 import com.github.AllenDuke.myThreadPoolService.ThreadPoolService;
-import com.github.AllenDuke.business.LRU;
 import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.ChannelInboundHandlerAdapter;
+import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.handler.timeout.IdleStateEvent;
 import lombok.extern.slf4j.Slf4j;
 
@@ -27,7 +27,7 @@ import java.util.concurrent.ThreadPoolExecutor;
  * @since 2020/2/11
  */
 @Slf4j
-public class RPCServerHandler extends ChannelInboundHandlerAdapter {
+public class RPCServerHandler extends SimpleChannelInboundHandler {
 
     private static final InvokeHandler invokeHandler=new InvokeHandler();
 
@@ -72,7 +72,7 @@ public class RPCServerHandler extends ChannelInboundHandlerAdapter {
      * @date: 2020/2/28
      */
     @Override
-    public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
+    public void channelRead0(ChannelHandlerContext ctx, Object msg) throws Exception {
         log.info("收到信息：" + msg + "，准备解码，调用服务");
         ClientMessage clientMessage;
         try{

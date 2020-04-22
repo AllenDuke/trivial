@@ -6,7 +6,7 @@ import com.github.AllenDuke.dto.ServerMessage;
 import com.github.AllenDuke.event.TimeOutEvent;
 import com.github.AllenDuke.exception.MsgSendingFailException;
 import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.ChannelInboundHandlerAdapter;
+import io.netty.channel.SimpleChannelInboundHandler;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.HashMap;
@@ -32,7 +32,7 @@ import java.util.concurrent.locks.LockSupport;
  * @since 2020/2/11
  */
 @Slf4j
-public class RPCClientHandler extends ChannelInboundHandlerAdapter {
+public class RPCClientHandler extends SimpleChannelInboundHandler {
 
     //对应的ChannelHandlerContext
     private volatile ChannelHandlerContext context;//一个线程连上或断连后，其他线程要感知到
@@ -77,7 +77,7 @@ public class RPCClientHandler extends ChannelInboundHandlerAdapter {
      * @date: 2020/2/28
      */
     @Override
-    public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
+    protected void channelRead0(ChannelHandlerContext ctx, Object msg) throws Exception {
         log.info("收到信息："+msg+"，准备解码，返回结果");
         ServerMessage serverMessage=null;
         try{
