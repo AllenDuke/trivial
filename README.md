@@ -84,6 +84,8 @@ example模块为样例，要安装lombok。
      * 此次BUG出现的背景是测试新功能——消息队列高水位和服务端基于LRU的简单防护机制，以为与新功能有关，实际是无关的，也怪自己在
      上一次稳定版本中没有进行完备的测试即发送大量消息，导致现在才发现，验证了BUG发现越晚越难排查这句话。
      * 没有打印异常信息也就是重写的时候要小心。**细节啊，细节啊。**
+4. OOM，Direct内存溢出，没有释放请求ByteBuf，即没有继承SimpleChannelInboundHandler，没有fireChannelRead，
+也没有ReferenceCountUtil.release。继承SimpleChannelInboundHandler，重写channelRead0
    
 
 如果你觉得对你有帮助的话，就给个star吧。
