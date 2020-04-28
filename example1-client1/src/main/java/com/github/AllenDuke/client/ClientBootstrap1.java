@@ -32,8 +32,6 @@ public class ClientBootstrap1 {
         ResultFuture<Integer> future = genericService.invokeAsy("Calculator", "add",
                 new Object[]{2, "3", 4});
 
-        //TODO 两线程并发时依然有错误，如消息丢失、漏发，有可能是别的原因，不是同步出现问题，因为在解决另一bug后
-        //TODO 此种问题即似乎漏掉了略过2*7，暂未再现，难道是重排序？
         new Thread(() -> {
             try {
                 calculator.multipy(2, 7);

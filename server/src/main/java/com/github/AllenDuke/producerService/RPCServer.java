@@ -73,8 +73,8 @@ public class RPCServer {
     //zookeeper连接超时
     private static int sessionTimeOut=1000;
 
-    //往zookeeper中注册的服务
-    private static Map<String,String> serviceNames;
+    //往zookeeper中注册的服务，key为服务名，value为Map for{version: 1.0, open: true}
+    private static Map<String,Map<String,Object>> services;
 
     //读写空闲达10s后，服务提供方断开连接
     protected static int allIdleTime=10*1000;//单位毫秒
@@ -118,31 +118,38 @@ public class RPCServer {
         if (!map.containsKey("port")) throw new ArgNotFoundExecption("rpc.yml缺少参数port!");
         zkPort = (Integer) map.get("port");
         if(map.containsKey("sessionTimeOut")) sessionTimeOut=(int) map.get("sessionTimeOut");
-        if(!map.containsKey("serviceNames")) throw new ArgNotFoundExecption("rpc.yaml缺少参数serviceNames");
-        serviceNames= (Map<String, String>) map.get("serviceNames");
-        Set<String> keySet = serviceNames.keySet();
+        if(!map.containsKey("services")) throw new ArgNotFoundExecption("rpc.yaml缺少参数services");
+        RPCServer.services = (Map<String, Map<String, Object>>) map.get("services");
+        Set<String> keySet = RPCServer.services.keySet();
         String connectString=zkHost+":"+zkPort;
         zooKeeper=new ZooKeeper(connectString,sessionTimeOut,(event)->{
             //多级节点要求父级为persistent
             try {
                 if (event.getState()  == Watcher.Event.KeeperState.SyncConnected) {
                     for (String s : keySet) {
+                        Double version=1.0;
+                        Boolean open=true;
+                        Map<String, Object> infoMap = services.get(s);
+                        if(infoMap!=null){//todo 增加权重信息
+                            if(infoMap.containsKey("version")) version= (Double) infoMap.get("version");
+                            if(infoMap.containsKey("open")) open= (Boolean) infoMap.get("open");
+                        }
                         if (zooKeeper.exists("/trivial/" + s, null)==null){
                             //先创建父级persistent节点
                             zooKeeper.create("/trivial/"+s,null
                                     , ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
-                            zooKeeper.create("/trivial/"+s+"/providors",null
+                            zooKeeper.create("/trivial/"+s+"/providers",null
                                     , ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
                         }
                         //创建当前ephemeral节点
-                        zooKeeper.create("/trivial/"+s+"/providors/"+(host+":"+port),
-                                (host+":"+port).getBytes(CharsetUtil.UTF_8),
+                        zooKeeper.create("/trivial/"+s+"/providers/"+(host+":"+port),
+                                (version+","+open).getBytes(CharsetUtil.UTF_8),
                                 ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.EPHEMERAL);
                     }
                     log.info("成功注册到zookeeper");
                 }else log.error("注册失败",new RegistrationFailException("注册失败"));
             }catch (Exception e){
-                log.error("节点创建异常",e);
+                log.error("节点异常",e);
             }
 
         });

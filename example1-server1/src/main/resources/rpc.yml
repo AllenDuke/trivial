@@ -11,4 +11,8 @@ zookeeper:
   host: 49.235.168.215
   port: 2181
   seesionTimeOut: 2000
-  serviceNames: {Calculator} #用于向zookeeper中注册，向外暴露
+  services: #用于向zookeeper中注册，向外暴露
+    Calculator:
+      version: 1.0
+      open: false #默认open
+

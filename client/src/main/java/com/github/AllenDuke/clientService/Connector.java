@@ -165,7 +165,8 @@ public class Connector {
     /**
      * @param serviceName 服务名称
      * @description: 根据服务名称尝试从已有的连接中拿到一个可用的RPCClientHandler，
-     * 如果没有则重用空闲的连接，如果也没有空闲的连接则构建新的连接
+     * 如果没有则重用空闲的连接，如果也没有空闲的连接则构建新的连接，
+     * 若构建连接的时候发现服务已经降级，那么直接返回null，不发起调用。
      * @return: com.github.AllenDuke.clientService.RPCClientHandler
      * @author: 杜科
      * @date: 2020/3/10
@@ -182,6 +183,10 @@ public class Connector {
             log.error("生产者：" + remoteAddress + "，已进入服务：" + serviceName + " 的黑名单");
         }
         String serverAddr = registry.findServer(serviceName, timeOutMap.get(serviceName));
+        if(serverAddr==null){
+            log.info("本次挑选的主机的服务："+serviceName+"，已经降级！");
+            return null;
+        }
         //ChannelPipeline pipeline = idlePipelineQueue.poll();//防止并发构建连接
         ChannelPipeline pipeline = null;//暂不知道如何重用
         if (pipeline != null) {
@@ -207,6 +212,10 @@ public class Connector {
      */
     public Object invoke(ClientMessage clientMessage) throws InterruptedException {
         RPCClientHandler clientHandler = findClientHandler(clientMessage.getClassName());
+        if(clientHandler==null){
+            log.error("本次挑选的主机的服务："+clientMessage.getClassName()+"，已经降级，将不发起调用，直接返回null！");
+            return null;
+        }
         clientHandler.sendMsg(clientMessage);//caller park
         return clientHandler.getResult(Thread.currentThread().getId());//unpark后获取结果
     }
@@ -220,6 +229,10 @@ public class Connector {
      */
     public ResultFuture invokeAsy(ClientMessage clientMessage){
         RPCClientHandler clientHandler = findClientHandler(clientMessage.getClassName());
+        if(clientHandler==null){
+            log.error("本次挑选的主机的服务："+clientMessage.getClassName()+"，已经降级，将不发起调用，直接返回null！");
+            return null;
+        }
         clientHandler.sendMsgAsy(clientMessage);
         return new ResultFuture(clientHandler);
     }
