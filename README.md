@@ -87,6 +87,12 @@ example模块为样例，要安装lombok。
      * 没有打印异常信息也就是重写的时候要小心。**细节啊，细节啊。**
 4. OOM，Direct内存溢出，没有释放请求ByteBuf，即没有继承SimpleChannelInboundHandler，没有fireChannelRead，
 也没有ReferenceCountUtil.release。继承SimpleChannelInboundHandler，重写channelRead0
-   
+
+## 与dubbo相异之处
+1. trivial超时扫描线程使用blockingQueue；dubbo使用ConcurrentHashMap的值的集合视图。
+详细比较参见：https://www.cnblogs.com/AllenDuke/p/12387493.html
+2. trivial客户端不加入业务线程池，接收到结果时，由netty io线程经过简单解释后唤醒响应的线程，因为这个过程并不耗时且能快速响应；
+dubbo加入业务线程池，接收到结果时，io线程封装成一个任务交予业务线程池，由业务线程池去唤醒调用者线程。如图：
+![dubbo-invokeProcedure](./image/dubbo-invokeProcedure.PNG)   
 
 如果你觉得对你有帮助的话，就给个star吧。
