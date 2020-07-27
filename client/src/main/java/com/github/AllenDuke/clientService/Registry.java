@@ -89,6 +89,7 @@ public class Registry {
     private String selectServer(List<String> children,String serviceName){
         if(children==null||children.size()==0) {
             log.error("找不到服务",new ServiceNotFoundException("找不到服务："+serviceName));
+            return null;
         }
         addrMem.put(serviceName,children);//更新本地存根（过滤黑名单）
         int rand= new Random().nextInt(children.size());//随机返回children.size为上界的非负数
