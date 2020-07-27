@@ -38,7 +38,7 @@ public class Registry {
             try {
                 children= zooKeeper.getChildren("/trivial/" + serviceName + "/providers", null);
             } catch (Exception e) {
-                e.printStackTrace();
+                log.error(e.getMessage());
             }
         }
         return selectServer(children,serviceName);
@@ -67,7 +67,7 @@ public class Registry {
             try {
                 children= zooKeeper.getChildren("/trivial/" + serviceName + "/providers", null);
             } catch (Exception e) {
-                e.printStackTrace();
+                log.error(e.getMessage());
             }
             for (int i = 0; i < children.size();) {
                 if(blackSet.contains(children.get(i))) children.remove(i);
@@ -113,7 +113,7 @@ public class Registry {
             try {
                 data = zooKeeper.getData("/trivial/" + serviceName + "/providers/" + addr, null, stat);
             } catch (Exception e) {
-                e.printStackTrace();
+                log.error(e.getMessage());
                 //因为有可能zookeeper已经宕机，所以直接返回addr
                 return addr;
             }
