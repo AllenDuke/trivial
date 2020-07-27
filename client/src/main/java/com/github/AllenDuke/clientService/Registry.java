@@ -1,6 +1,7 @@
 package com.github.AllenDuke.clientService;
 
 import com.github.AllenDuke.exception.ServiceNotFoundException;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.zookeeper.ZooKeeper;
 import org.apache.zookeeper.data.Stat;
 
@@ -12,6 +13,7 @@ import java.util.*;
  * @contact AllenDuke@163.com
  * @since 2020/3/10
  */
+@Slf4j
 public class Registry {
 
     private ZooKeeper zooKeeper=RPCClient.zooKeeper;
@@ -85,7 +87,9 @@ public class Registry {
      * @date: 2020/4/28
      */
     private String selectServer(List<String> children,String serviceName){
-        if(children==null||children.size()==0) throw new ServiceNotFoundException("找不到服务："+serviceName);
+        if(children==null||children.size()==0) {
+            log.error("找不到服务",new ServiceNotFoundException("找不到服务："+serviceName));
+        }
         addrMem.put(serviceName,children);//更新本地存根（过滤黑名单）
         int rand= new Random().nextInt(children.size());//随机返回children.size为上界的非负数
         String addr=children.get(rand);

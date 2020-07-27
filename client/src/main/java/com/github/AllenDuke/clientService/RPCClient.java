@@ -39,10 +39,10 @@ public class RPCClient {
     protected static boolean shutdown = false;
 
     //服务提供方主机地址，用于直连
-    private static String serverHost;
+    protected static String serverHost;
 
     //服务提供方端口号
-    private static int serverPort;
+    protected static int serverPort;
 
     //是否允许超时，不允许将一直阻塞
     protected static long timeout = -1;

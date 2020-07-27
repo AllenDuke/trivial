@@ -13,10 +13,10 @@
         <module>client</module>
         <module>server</module>
         <module>common</module>
-        <module>example1-server1</module>
-        <module>example1-server2</module>
-        <module>example1-client1</module>
-        <module>example1-client2</module>
+<!--        <module>example1-server1</module>-->
+<!--        <module>example1-server2</module>-->
+<!--        <module>example1-client1</module>-->
+<!--        <module>example1-client2</module>-->
     </modules>
 
     <dependencies>
