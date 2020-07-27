@@ -9,4 +9,4 @@ zookeeper:
   host: 49.235.168.215
   port: 2181
   seesionTimeOut: 2000
-  serviceNames: {Calculator} #用于向zookeeper中订阅，实际上用不到，因为当调用的时候是直接寻找server的
+  consumeServiceNames: {Calculator} #用于向zookeeper中订阅，实际上用不到，因为当调用的时候是直接寻找server的，只用作统计

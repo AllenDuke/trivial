@@ -181,7 +181,10 @@ public class RPCClientHandler extends SimpleChannelInboundHandler {
      */
     private void send(ClientMessage clientMessage,boolean isAsy){
         long callerId=clientMessage.getCallerId();
-        if(resultMap.containsKey(callerId)) LockSupport.park();//如果上一次调用的结果没有去获取，那么就先消费上一次的许可
+        /**
+         * 如果上一次调用的结果没有去获取，那么就先消费上一次的许可
+         */
+        if(resultMap.containsKey(callerId)) LockSupport.park();
         /**
          * 同步或者异步调用，caller都加入waiterMap当中，
          * 若为异步调用，可利用此来避免lost-wake-up

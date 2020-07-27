@@ -146,13 +146,18 @@ public class RPCClient {
         if (!map.containsKey("port")) throw new ArgNotFoundExecption("rpc.yml缺少参数port!");
         zkPort = (Integer) map.get("port");
         if (map.containsKey("sessionTimeOut")) sessionTimeOut = (int) map.get("sessionTimeOut");
-        if (map.containsKey("serviceNames")) serviceNames = (Map<String, String>) map.get("serviceNames");
+        if (map.containsKey("consumeServiceNames")) serviceNames = (Map<String, String>) map.get("consumeServiceNames");
         String connectString = zkHost + ":" + zkPort;
         Thread main=Thread.currentThread();
         zooKeeper = new ZooKeeper(connectString, sessionTimeOut, (event) -> {
             //多级节点要求父级为persistent
             try {
                 if (event.getState() == Watcher.Event.KeeperState.SyncConnected) {
+                    if (zooKeeper.exists("/trivial", null)==null){
+                        //先创建父级persistent节点
+                        zooKeeper.create("/trivial",null
+                                , ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
+                    }
                     if (serviceNames != null && serviceNames.keySet() != null)//这是不必要的参数
                         for (String s : serviceNames.keySet()) {
                             if (zooKeeper.exists("/trivial/" + s, null) == null) {
