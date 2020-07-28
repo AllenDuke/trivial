@@ -5,6 +5,7 @@ server:
   packageName: com.github.AllenDuke.serviceImpl
   businessPoolModel: 2
   allIdleTime: 3000
+  enableSpring: 1 #是否将环境置于spring中，默认0为否，1为是
 zookeeper:
   host: 49.235.168.215
   port: 2181

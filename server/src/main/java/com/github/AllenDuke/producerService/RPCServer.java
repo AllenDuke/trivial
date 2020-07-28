@@ -79,6 +79,9 @@ public class RPCServer {
     //读写空闲达10s后，服务提供方断开连接
     protected static int allIdleTime=10*1000;//单位毫秒
 
+    //是否启用Spring
+    public static int enableSpring;
+
     //配置jdk线程池，启动服务端
     public static void startServer(ThreadPoolExecutor poolExecutor) throws Exception {
         executor=poolExecutor;
@@ -107,6 +110,13 @@ public class RPCServer {
         if(businessPoolModel==1&&executor==null) throw new ArgNotFoundExecption("缺少jdk线程池");
         if(businessPoolModel==2&&poolService==null) throw new ArgNotFoundExecption("缺少自实现线程池");
         if(map.containsKey("allIdleTime")) allIdleTime=(int) map.get("allIdleTime");
+        if(map.containsKey("enableSpring")) enableSpring=(int) map.get("enableSpring");
+        if(enableSpring==1) initSpring();
+    }
+
+    //初始化spring环境
+    private static void initSpring(){
+
     }
 
     //配置zookeeper参数

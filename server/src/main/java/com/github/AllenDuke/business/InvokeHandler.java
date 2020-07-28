@@ -3,6 +3,7 @@ package com.github.AllenDuke.business;
 import com.github.AllenDuke.dto.ClientMessage;
 import com.github.AllenDuke.exception.MethodNotFoundException;
 import com.github.AllenDuke.producerService.RPCServer;
+import com.github.AllenDuke.spring.TrivialSpringUtil;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -102,9 +103,10 @@ public class InvokeHandler {
          */
         if(o==null){
             /**
-             * todo 先尝试从spring容器中获取，
-             * 因为如果当前环境是spring，直接调用newInstance生成实例的话，很可能会造成mapper属性丢失，进而发生空指针异常
+             * 先尝试从spring容器中获取，因为如果当前环境是spring，直接调用newInstance生成实例的话，
+             * 很可能会造成service中的mapper属性丢失，进而发生空指针异常。
              */
+            if(RPCServer.enableSpring==1) o= TrivialSpringUtil.getBean(serviceImpl);
             synchronized (serviceObjects){
                 if(o==null){
                     o=serviceImpl.newInstance();

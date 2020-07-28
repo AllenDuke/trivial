@@ -13,10 +13,10 @@
         <module>client</module>
         <module>server</module>
         <module>common</module>
-        <module>example1-server1</module>
-        <module>example1-server2</module>
-        <module>example1-client1</module>
-        <module>example1-client2</module>
+<!--        <module>example1-server1</module>-->
+<!--        <module>example1-server2</module>-->
+<!--        <module>example1-client1</module>-->
+<!--        <module>example1-client2</module>-->
     </modules>
 
     <dependencies>
@@ -73,6 +73,30 @@
             <artifactId>zookeeper</artifactId>
             <version>3.5.5</version>
         </dependency>
+
+        <!-- https://mvnrepository.com/artifact/org.springframework/spring-context -->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-context</artifactId>
+            <version>5.0.2.RELEASE</version>
+        </dependency>
+
+        <!-- https://mvnrepository.com/artifact/org.springframework/spring-core -->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-core</artifactId>
+            <version>5.0.2.RELEASE</version>
+        </dependency>
+
+
+        <!-- https://mvnrepository.com/artifact/org.springframework/spring-beans -->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-beans</artifactId>
+            <version>5.0.2.RELEASE</version>
+        </dependency>
+
+
 
     </dependencies>
 
