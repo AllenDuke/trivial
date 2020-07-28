@@ -1,6 +1,6 @@
 package com.github.AllenDuke.business;
 
-import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.JSONObject;
 import com.github.AllenDuke.dto.ClientMessage;
 import com.github.AllenDuke.exception.MethodNotFoundException;
 import com.github.AllenDuke.producerService.RPCServer;
@@ -131,8 +131,11 @@ public class InvokeHandler {
         argTypes=argTypes.substring(argTypes.indexOf(":")+1);
         String[] types = argTypes.split(" ");
         for(int i=0;i<args.length;i++){
-            Class<?> clazz = Class.forName(types[i]);
-            args[i]=JSON.parseObject((String) args[i], clazz);
+            if(args[i] instanceof JSONObject){
+                Class<?> clazz = Class.forName(types[i]);
+                JSONObject jsonObject= (JSONObject)args[i];
+                args[i]=jsonObject.toJavaObject(clazz);
+            }
         }
         return args;
     }
@@ -153,7 +156,7 @@ public class InvokeHandler {
         String methodName = clientMessage.getMethodName();
         Class serviceImpl = findClass(className);
         Method method = findMethod(serviceImpl, methodName, args, clientMessage.getArgTypes());
-//        args = resumeArgs(args,clientMessage.getArgTypes());
+        args = resumeArgs(args,clientMessage.getArgTypes());
         Object result = invoke(serviceImpl, method, args);
         return result;
     }
