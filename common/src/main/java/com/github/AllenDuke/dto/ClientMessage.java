@@ -19,17 +19,19 @@ public class ClientMessage {
     private String className;//要调用的类名
     private String methodName;//要调用的方法名
     private Object[] args;//方法的参数
+    private String argTypes;//参数类型，因为arg将会被json格式化
     private Long count;//当前调用者的第count次调用
 
     //要有无参构造共fastjson反序列化调用，
     // 否则服务方将调用下面有参构造使得count++（不会再调用setter，使得count一致，消息过期）
     public ClientMessage(){}
 
-    public ClientMessage(long callerId, String className, String methodName, Object[] args) {
+    public ClientMessage(long callerId, String className, String methodName, Object[] args,String argTypes) {
         this.callerId = callerId;
         this.className = className;
         this.methodName = methodName;
         this.args = args;
+        this.argTypes=argTypes;
         this.count=sum.getAndIncrement();
     }
 
@@ -63,6 +65,14 @@ public class ClientMessage {
 
     public void setArgs(Object[] args) {
         this.args = args;
+    }
+
+    public String getArgTypes() {
+        return argTypes;
+    }
+
+    public void setArgTypes(String argTypes) {
+        this.argTypes = argTypes;
     }
 
     public long getCount() {

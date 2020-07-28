@@ -22,8 +22,12 @@ public class GenericService {
      */
     public ResultFuture invokeAsy(String className, String methodName, Object[] args){
         if(RPCClient.shutdown) throw new ShutDownException("当前RPCClient已经shutdown了");
+        StringBuilder argTypes=new StringBuilder(",argTypes:");;
+        for (Object arg : args) {
+            argTypes.append(arg.getClass().getName()+ " ");
+        }
         ClientMessage clientMessage = new ClientMessage(Thread.currentThread().getId(),
-                className, methodName, args);
+                className, methodName, args,argTypes.toString());
         return RPCClient.getConnector().invokeAsy(clientMessage);//异步调用
     }
 }

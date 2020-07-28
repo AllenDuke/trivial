@@ -211,8 +211,12 @@ public class RPCClient {
                                 if(shutdown) throw new ShutDownException("当前RPCClient已经shutdown了");
                                 String className = serivceClass.getName();
                                 className = className.substring(className.lastIndexOf(".") + 1);//去掉包名
+                                StringBuilder argTypes=new StringBuilder(",argTypes:");;
+                                for (Object arg : args) {
+                                    argTypes.append(arg.getClass().getName()+ " ");
+                                }
                                 ClientMessage clientMessage = new ClientMessage(Thread.currentThread().getId(),
-                                        className, method.getName(), args);
+                                        className, method.getName(), args,argTypes.toString());
                                 /**
                                  * 如果没有返回值，就异步调用，不阻塞调用者线程。
                                  * todo 调用失败时如何处理？
