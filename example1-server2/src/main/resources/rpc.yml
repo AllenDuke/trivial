@@ -11,4 +11,6 @@ zookeeper:
   port: 2181
   seesionTimeOut: 2000
   provideServiceNames:
+    Calculator:
+    HelloService:
 

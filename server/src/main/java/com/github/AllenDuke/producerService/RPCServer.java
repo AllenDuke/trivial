@@ -4,17 +4,17 @@ package com.github.AllenDuke.producerService;
 import com.github.AllenDuke.exception.ArgNotFoundExecption;
 import com.github.AllenDuke.exception.RegistrationFailException;
 import com.github.AllenDuke.myThreadPoolService.ThreadPoolService;
+import com.github.AllenDuke.util.JsonDecoder;
+import com.github.AllenDuke.util.JsonEncoder;
 import com.github.AllenDuke.util.YmlUtil;
 import io.netty.bootstrap.ServerBootstrap;
-import io.netty.buffer.ByteBuf;
-import io.netty.buffer.Unpooled;
-import io.netty.channel.*;
+import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelInitializer;
+import io.netty.channel.ChannelPipeline;
+import io.netty.channel.EventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
-import io.netty.handler.codec.DelimiterBasedFrameDecoder;
-import io.netty.handler.codec.string.StringDecoder;
-import io.netty.handler.codec.string.StringEncoder;
 import io.netty.handler.timeout.IdleStateHandler;
 import io.netty.util.CharsetUtil;
 import lombok.extern.slf4j.Slf4j;
@@ -195,12 +195,15 @@ public class RPCServer {
                                       @Override
                                       protected void initChannel(SocketChannel ch) throws Exception {
                                           ChannelPipeline pipeline = ch.pipeline();
-                                          ByteBuf delimiter = Unpooled.copiedBuffer("}".getBytes());//“}”为分隔符
-                                          //解码器循环解码，每解析出一个就往后传播
-                                          pipeline.addLast(new DelimiterBasedFrameDecoder(2048,
-                                                  false, delimiter));
-                                          pipeline.addLast(new StringEncoder());//outbound编码器
-                                          pipeline.addLast(new StringDecoder());//inbound解码器
+//                                          这种解码方式有误
+//                                          ByteBuf delimiter = Unpooled.copiedBuffer("}".getBytes());//“}”为分隔符
+//                                          //解码器循环解码，每解析出一个就往后传播
+//                                          pipeline.addLast(new DelimiterBasedFrameDecoder(2048,
+//                                                  false, delimiter));
+                                          pipeline.addLast(new JsonEncoder());
+                                          pipeline.addLast(new JsonDecoder());
+//                                          pipeline.addLast(new StringEncoder());//outbound编码器
+//                                          pipeline.addLast(new StringDecoder());//inbound解码器
                                           pipeline.addLast(new IdleStateHandler(60*1000,
                                                   60*1000,allIdleTime, TimeUnit.MILLISECONDS));
                                           pipeline.addLast(new RPCServerHandler());//业务处理器

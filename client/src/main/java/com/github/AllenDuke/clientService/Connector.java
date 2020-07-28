@@ -1,6 +1,8 @@
 package com.github.AllenDuke.clientService;
 
 import com.github.AllenDuke.dto.ClientMessage;
+import com.github.AllenDuke.util.JsonDecoder;
+import com.github.AllenDuke.util.JsonEncoder;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
@@ -74,11 +76,14 @@ public class Connector {
                                 @Override
                                 protected void initChannel(SocketChannel ch) throws Exception {
                                     ChannelPipeline pipeline = ch.pipeline();
-                                    ByteBuf delimiter = Unpooled.copiedBuffer("}".getBytes());//“}”为分隔符
-                                    pipeline.addLast(new DelimiterBasedFrameDecoder(2048,
-                                            false, delimiter));//不去除分割符
-                                    pipeline.addLast(new StringEncoder());//outbound编码器
-                                    pipeline.addLast(new StringDecoder());//inbound解码器
+//                                    这种解码方式有误
+//                                    ByteBuf delimiter = Unpooled.copiedBuffer("}".getBytes());//“}”为分隔符
+//                                    pipeline.addLast(new DelimiterBasedFrameDecoder(2048,
+//                                            false, delimiter));//不去除分割符
+                                    pipeline.addLast(new JsonEncoder());
+                                    pipeline.addLast(new JsonDecoder());
+//                                    pipeline.addLast(new StringEncoder());//outbound编码器
+//                                    pipeline.addLast(new StringDecoder());//inbound解码器
                                     pipeline.addLast(new RPCClientHandler());//业务处理器
                                 }
                             }
