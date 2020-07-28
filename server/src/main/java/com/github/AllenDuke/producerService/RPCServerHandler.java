@@ -46,20 +46,28 @@ public class RPCServerHandler extends SimpleChannelInboundHandler {
      */
     @Override
     public void channelActive(ChannelHandlerContext ctx) throws Exception {
+        SocketAddress remoteAddress = ctx.channel().remoteAddress();
+        String addr=remoteAddress.toString();
+        log.info(addr+" 正在尝试连接...");
         if(lru!=null){
-            SocketAddress remoteAddress = ctx.channel().remoteAddress();
-            String addr=remoteAddress.toString();
             addr=addr.substring(1,addr.indexOf(":"));
             InvokeErrorNode errorNode = lru.get(addr);
             if(errorNode==null||System.currentTimeMillis()-errorNode.getLastTime()>1000*60*60*24
-                    ||errorNode.getErrCount()<100) return;
+                    ||errorNode.getErrCount()<100) {
+                System.out.println(remoteAddress.toString() + " 成功连接");
+                super.channelActive(ctx);
+                return;
+            }
             log.error("该远程客户端一天内调用错误次数达到100次，认为已受到了该客户端的攻击，" +
                     "24小时内不允许再次连接，将告知客户端并断开连接");
             ServerMessage serverMessage=new ServerMessage(0,0,false,
                     "请24小时之后再试！");
             ctx.writeAndFlush(JSON.toJSONString(serverMessage));
             ctx.close();
+            return;
         }
+        log.info(remoteAddress.toString() + " 成功连接");
+        super.channelActive(ctx);
     }
 
     /**

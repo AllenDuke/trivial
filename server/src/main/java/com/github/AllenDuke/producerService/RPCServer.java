@@ -119,8 +119,9 @@ public class RPCServer {
         zkPort = (Integer) map.get("port");
         if(map.containsKey("sessionTimeOut")) sessionTimeOut=(int) map.get("sessionTimeOut");
         if(!map.containsKey("provideServiceNames")) throw new ArgNotFoundExecption("rpc.yaml缺少参数provideServiceNames");
-        RPCServer.services = (Map<String, Map<String, Object>>) map.get("provideServiceNames");
-        Set<String> keySet = RPCServer.services.keySet();
+        services = (Map<String, Map<String, Object>>) map.get("provideServiceNames");
+        if(services==null) return;
+        Set<String> keySet = services.keySet();
         String connectString=zkHost+":"+zkPort;
         zooKeeper=new ZooKeeper(connectString,sessionTimeOut,(event)->{
             //多级节点要求父级为persistent

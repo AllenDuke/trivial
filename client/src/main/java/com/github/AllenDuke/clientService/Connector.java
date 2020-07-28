@@ -186,6 +186,7 @@ public class Connector {
         if(serverAddr==null){
             log.info("本次挑选的主机的服务："+serviceName+"，已经降级！尝试直连...");
             serverAddr=RPCClient.serverHost+":"+RPCClient.serverPort;
+            log.info("直连地址为："+serverAddr);
         }
         //ChannelPipeline pipeline = idlePipelineQueue.poll();//防止并发构建连接
         ChannelPipeline pipeline = null;//暂不知道如何重用

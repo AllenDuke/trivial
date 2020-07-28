@@ -101,6 +101,10 @@ public class InvokeHandler {
          * double-check使得只创建一个实例，而ConcurrentHashMap做不到
          */
         if(o==null){
+            /**
+             * todo 先尝试从spring容器中获取，
+             * 因为如果当前环境是spring，直接调用newInstance生成实例的话，很可能会造成mapper属性丢失，进而发生空指针异常
+             */
             synchronized (serviceObjects){
                 if(o==null){
                     o=serviceImpl.newInstance();
