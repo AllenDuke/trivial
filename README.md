@@ -33,6 +33,9 @@ netty，并发，线程池，原子变量，阻塞队列，并发队列，synchr
 11. 下一版本中完善服务监控与动态治理（容错，降级等）。
 ## 使用
 example模块为样例，要安装lombok。
+注意：
+1. server提供的服务，应尽量是无状态的，具体解释在server的InvokeHandler.java invoke方法114行。
+2. server提供的服务，如果是在spring环境中，那么需要注册Bean——TrivialSpringUtil。
 ## 简单同步调用时序图
 ![image1](./image/a%20simple%20sequence%20chart.PNG)
 ## 简单异步调用时许图

@@ -111,6 +111,10 @@ public class InvokeHandler {
             if (RPCServer.enableSpring == 1) o = TrivialSpringUtil.getBean(serviceImpl);
             synchronized (serviceObjects) {
                 if (o == null) {
+                    /**
+                     * o应尽量为无状态的
+                     * newInstance调用的是无参构造方法，当o有属性p，而method内调用p的某个方法，而o的p是空的，所以会抛空指针异常
+                     */
                     o = serviceImpl.newInstance();
                     serviceObjects.put(serviceImpl.getName(), o);
                 }
