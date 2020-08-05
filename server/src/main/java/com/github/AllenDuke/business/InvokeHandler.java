@@ -30,7 +30,7 @@ public class InvokeHandler {
     private static final Map<String, Method> methodMap = new HashMap<>();
 
     //key为实现类名，value为实现类的实例
-    private static Map<String, Object> serviceObjects = new HashMap<>();
+    private static final Map<String, Object> serviceObjects = new HashMap<>();
 
     /**
      * @param className 类的全限定名
@@ -50,10 +50,10 @@ public class InvokeHandler {
     }
 
     /**
-     * @param serviceImpl  要调用的类
-     * @param methodName   要调用的方法的名字
-     * @param args         方法的参数，这里用作验证方法
-     * @param argTypes 参数类型名，这里用作找到方法后以全限定名添加到缓存
+     * @param serviceImpl 要调用的类
+     * @param methodName  要调用的方法的名字
+     * @param args        方法的参数，这里用作验证方法
+     * @param argTypes    参数类型名，这里用作找到方法后以全限定名添加到缓存
      * @description: 找到要调用的方法，先从缓存中找，会抛出MethodNotFoundException
      * @return: java.lang.reflect.Method
      * @author: 杜科
@@ -63,6 +63,9 @@ public class InvokeHandler {
         Method method = methodMap.get(serviceImpl.getName() + "." + methodName + argTypes);//先在缓存中寻找
         if (method == null)
             for (Method method1 : serviceImpl.getMethods()) {
+                /**
+                 * 当找到一个方法，与目标方法的名字、参数长度相同时，开始验证参数类型是否一致
+                 */
                 if (method1.getName().equals(methodName) && method1.getParameterCount() == args.length) {
                     final Parameter[] parameters = method1.getParameters();
                     /**
@@ -80,7 +83,6 @@ public class InvokeHandler {
                      */
                     methodMap.put(serviceImpl.getName() + "." + methodName + argTypes, method);
                     break;
-
                 }
             }
         if (method == null) throw new MethodNotFoundException("找不到方法 " + methodName);
@@ -88,60 +90,59 @@ public class InvokeHandler {
     }
 
     /**
+     * @param args     json格式化的参数s
+     * @param argTypes 原参数类型
+     * @description: 根据原参数类型，将json格式化的参数恢复原状
+     * @return: java.lang.Object[] 原参数
+     * @author: 杜科
+     * @date: 2020/7/28
+     */
+    private Object[] resumeArgs(Object[] args, String argTypes) throws ClassNotFoundException {
+        argTypes = argTypes.substring(argTypes.indexOf(":") + 1);
+        String[] types = argTypes.split(" ");
+        for (int i = 0; i < args.length; i++) {
+            if (args[i] instanceof JSONObject) {
+                JSONObject jsonObject = (JSONObject) args[i];
+                Class<?> clazz = Class.forName(types[i]);
+                args[i] = jsonObject.toJavaObject(clazz);
+            }
+        }
+        return args;
+    }
+
+    /**
      * @param serviceImpl
      * @param method
-     * @param args        每一个arg是json格式的
+     * @param args
      * @description: 对方法进行调用，会要求调用的类有无参构造
      * 会抛出IllegalAccessException InstantiationException InvocationTargetException
      * @return: java.lang.Object
      * @author: 杜科
-     * @date: 2020/3/1
+     * @date: 2020/8/5
      */
     public Object invoke(Class serviceImpl, Method method, Object[] args) throws IllegalAccessException,
             InstantiationException, InvocationTargetException {
-        Object o = serviceObjects.get(serviceImpl.getName());
-        /**
-         * double-check使得只创建一个实例，而ConcurrentHashMap做不到
-         */
+        Object o = serviceObjects.get(serviceImpl.getName());//先从缓存中寻找
         if (o == null) {
             /**
              * 先尝试从spring容器中获取，因为如果当前环境是spring，直接调用newInstance生成实例的话，
              * 很可能会造成service中的mapper属性丢失，进而发生空指针异常。
              */
             if (RPCServer.enableSpring == 1) o = TrivialSpringUtil.getBean(serviceImpl);
-            synchronized (serviceObjects) {
-                if (o == null) {
-                    /**
-                     * o应尽量为无状态的
-                     * newInstance调用的是无参构造方法，当o有属性p，而method内调用p的某个方法，而o的p是空的，所以会抛空指针异常
-                     */
-                    o = serviceImpl.newInstance();
-                    serviceObjects.put(serviceImpl.getName(), o);
-                }
+
+            if (o == null) {
+                /**
+                 * o应尽量为无状态的
+                 * newInstance调用的是无参构造方法，当o有属性p，而method内调用p的某个方法，而o的p是空的，所以会抛空指针异常
+                 */
+                o = serviceImpl.newInstance();
             }
+            /**
+             * 并发时可能会进行多次put操作，但问题不大，o无状态。
+             */
+            serviceObjects.put(serviceImpl.getName(), o);
         }
         return method.invoke(o, args);
-    }
-
-    /**
-     * @description: 根据原参数类型，将json格式化的参数恢复原状
-     * @param args json格式化的参数s
-     * @param argTypes 原参数类型
-     * @return: java.lang.Object[] 原参数
-     * @author: 杜科
-     * @date: 2020/7/28
-     */
-    private Object[] resumeArgs(Object[] args,String argTypes) throws ClassNotFoundException {
-        argTypes=argTypes.substring(argTypes.indexOf(":")+1);
-        String[] types = argTypes.split(" ");
-        for(int i=0;i<args.length;i++){
-            if(args[i] instanceof JSONObject){
-                Class<?> clazz = Class.forName(types[i]);
-                JSONObject jsonObject= (JSONObject)args[i];
-                args[i]=jsonObject.toJavaObject(clazz);
-            }
-        }
-        return args;
     }
 
     /**
@@ -155,12 +156,12 @@ public class InvokeHandler {
      */
     public Object handle(ClientMessage clientMessage) throws ClassNotFoundException, IllegalAccessException,
             InvocationTargetException, InstantiationException, MethodNotFoundException {
-        String className = packageName + clientMessage.getClassName();
+        String className = packageName + clientMessage.getClassName();//拼接出全限定名
         Object[] args = clientMessage.getArgs();
         String methodName = clientMessage.getMethodName();
         Class serviceImpl = findClass(className);
         Method method = findMethod(serviceImpl, methodName, args, clientMessage.getArgTypes());
-        args = resumeArgs(args,clientMessage.getArgTypes());
+        args = resumeArgs(args, clientMessage.getArgTypes());
         Object result = invoke(serviceImpl, method, args);
         return result;
     }

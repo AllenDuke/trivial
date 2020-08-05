@@ -20,6 +20,7 @@ public class JsonEncoder extends MessageToByteEncoder<Object> {
         byte[] body = ((String) msg).getBytes();
         int dataLength = body.length;
         out.writeInt(dataLength);
+        //todo 对json再进行编码，例如对每一个byte ^dataLength
         out.writeBytes(body);
     }
 }

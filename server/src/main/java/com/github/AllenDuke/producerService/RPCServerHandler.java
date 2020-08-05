@@ -21,7 +21,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 /**
  * @author 杜科
  * @description rpc服务提供者的业务处理器
- * 由netty线程负责接收来自客户端的信息，解析信息，调用相关方法，写回结果，后续版本会使用业务线程池来更新
+ * 由netty线程负责接收来自客户端的信息，（由业务线程池）解析信息，调用相关方法，写回结果。
  * 这里有多出try catch是为了防止netty线程在处理时异常退出。
  * @contact AllenDuke@163.com
  * @since 2020/2/11
@@ -29,12 +29,16 @@ import java.util.concurrent.ThreadPoolExecutor;
 @Slf4j
 public class RPCServerHandler extends SimpleChannelInboundHandler {
 
+    //调用处理器，用来找到方法进行调用
     private static final InvokeHandler invokeHandler=new InvokeHandler();
 
+    //jdk业务线程池
     private static final ThreadPoolExecutor executor=RPCServer.executor;
 
+    //自实现线程池
     private static final ThreadPoolService poolService=RPCServer.poolService;
 
+    //缓存一些错误调用信息，用来进行一些简单的防护
     private static volatile LRU<String,InvokeErrorNode> lru;
 
     /**
@@ -83,6 +87,7 @@ public class RPCServerHandler extends SimpleChannelInboundHandler {
     public void channelRead0(ChannelHandlerContext ctx, Object msg) throws Exception {
         log.info("收到信息：" + msg + "，准备解码，调用服务");
         ClientMessage clientMessage;
+
         try{
             clientMessage = JSON.parseObject((String) msg, ClientMessage.class);
         }catch (Exception e){
@@ -93,8 +98,16 @@ public class RPCServerHandler extends SimpleChannelInboundHandler {
             recordInvokeException(ctx,e);
             return;
         }
+
+        /**
+         * 例如传进来的是serviceA，那么我们的实现应该serviceAImpl
+         */
         clientMessage.setClassName(clientMessage.getClassName()+"Impl");//加上后缀
-        if(RPCServer.businessPoolModel>0){//如果有线程池
+
+        /**
+         * 如果有设定业务线程池，那么封装成任务，提交到线程池
+         */
+        if(RPCServer.businessPoolModel>0){
             try{
                 if(RPCServer.businessPoolModel==1)//jdk线程池
                     executor.execute(new InvokeTask(clientMessage,invokeHandler,ctx));
@@ -103,36 +116,37 @@ public class RPCServerHandler extends SimpleChannelInboundHandler {
             }catch (Exception e){
                 log.error("线程池拒绝任务，即将通知客户端",e);
                 ServerMessage serverMessage=new ServerMessage(clientMessage.getCallerId()
-                        ,clientMessage.getCount()
-                        , false,"服务器繁忙！");
+                        ,clientMessage.getCount(), false,"服务器繁忙！");
                 ctx.writeAndFlush(JSON.toJSONString(serverMessage));
-                recordInvokeException(ctx,e);
+                recordInvokeException(ctx,e);//记录异常调用
             }finally {
                 return;
             }
         }
-        Object result;
+
+        Object result;//调用结果
+
         try {
-            result= invokeHandler.handle(clientMessage);
+            result= invokeHandler.handle(clientMessage);//由netty io线程直接调用
         }catch (Exception e){
             log.error("实现方法调用异常，放弃本次调用服务，即将通知本次调用者",e);
             ServerMessage serverMessage=new ServerMessage(clientMessage.getCallerId()
-                    ,clientMessage.getCount()
-                    , false,"实现方法调用异常");
+                    ,clientMessage.getCount(), false,"实现方法调用异常");
             ctx.writeAndFlush(JSON.toJSONString(serverMessage));
-            recordInvokeException(ctx,e);
+            recordInvokeException(ctx,e);//记录异常调用
             return;
         }
+
         ServerMessage serverMessage=new ServerMessage(clientMessage.getCallerId()
                 ,clientMessage.getCount(),true,result);
         log.info("实现方法调用成功，即将返回信息："+serverMessage);
-        ctx.writeAndFlush(JSON.toJSONString(serverMessage));//转换为json文本
+        ctx.writeAndFlush(JSON.toJSONString(serverMessage));
     }
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
         log.error("捕获到异常，即将关闭连接！",cause);
-        ctx.close();
+        super.exceptionCaught(ctx,cause);
     }
 
     /**
@@ -198,8 +212,7 @@ public class RPCServerHandler extends SimpleChannelInboundHandler {
                     eventType = "读写空闲";
                     break;
             }
-            log.error("channel: "+ctx.channel()+eventType,
-                    new ConnectionIdleException("发生连接空闲，即将断开"));
+            log.error("channel: "+ctx.channel()+eventType, new ConnectionIdleException("发生连接空闲，即将断开"));
             ctx.channel().close();
         }
     }

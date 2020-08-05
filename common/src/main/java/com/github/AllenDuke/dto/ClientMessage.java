@@ -12,18 +12,27 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public class ClientMessage {
 
-    //记录构造次数，原子变量防止并发构造
+    //记录构造次数，原子变量防止并发构造，作为id用来唯一标记一次rpc
     private static AtomicLong sum=new AtomicLong(0);
 
-    private Long callerId;//调用者线程id
-    private String className;//要调用的类名
-    private String methodName;//要调用的方法名
-    private Object[] args;//方法的参数
-    private String argTypes;//参数类型，因为arg将会被json格式化
-    private Long count;//当前调用者的第count次调用
+    //调用者线程id
+    private Long callerId;
 
-    //要有无参构造共fastjson反序列化调用，
-    // 否则服务方将调用下面有参构造使得count++（不会再调用setter，使得count一致，消息过期）
+    //要调用的类名
+    private String className;
+
+    //要调用的方法名
+    private String methodName;
+
+    //方法的参数
+    private Object[] args;
+
+    //参数原始类型，因为arg将会被json格式化
+    private String argTypes;
+
+    //第count次调用
+    private Long count;
+
     public ClientMessage(){}
 
     public ClientMessage(long callerId, String className, String methodName, Object[] args,String argTypes) {
@@ -32,7 +41,7 @@ public class ClientMessage {
         this.methodName = methodName;
         this.args = args;
         this.argTypes=argTypes;
-        this.count=sum.getAndIncrement();
+        this.count=sum.getAndIncrement();//sum++
     }
 
     public long getCallerId() {

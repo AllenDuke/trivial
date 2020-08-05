@@ -37,7 +37,7 @@ import java.util.concurrent.TimeUnit;
 @Slf4j
 public class RPCServer {
 
-    //服务实现类所在的包名
+    //服务实现类所在的包名，将来接收到消费者的请求时，只会扫描该包下的类 todo 优化
     public static String packageName;
 
     //主机地址
@@ -46,10 +46,10 @@ public class RPCServer {
     //端口
     private static int port;
 
-    //boss数量
+    //netty boss数量
     private static int bossSize=1;
 
-    //worker数量
+    //netty worker数量
     private static int workerSize= 0;//为0将使用默认值：cpu核数*2
 
     //业务线程池模型
@@ -67,19 +67,19 @@ public class RPCServer {
     //zookeeper端口
     private static int zkPort;
 
-    //zookeeper客户端
+    //zookeeper操作客户端
     private static ZooKeeper zooKeeper;
 
-    //zookeeper连接超时
+    //zookeeper连接超时时限
     private static int sessionTimeOut=1000;
 
     //往zookeeper中注册的服务，key为服务名，value为Map for{version: 1.0, open: true}
     private static Map<String,Map<String,Object>> services;
 
-    //读写空闲达10s后，服务提供方断开连接
+    //默认读写空闲达10s后，服务提供方断开连接
     protected static int allIdleTime=10*1000;//单位毫秒
 
-    //是否启用Spring
+    //是否启用Spring，取决于用户要暴露的服务是否存在于Spring环境中
     public static int enableSpring;
 
     //配置jdk线程池，启动服务端
@@ -132,6 +132,10 @@ public class RPCServer {
         services = (Map<String, Map<String, Object>>) map.get("provideServiceNames");
         if(services==null) return;
         Set<String> keySet = services.keySet();
+        /**
+         * 将服务信息挂载到zookeeper上，
+         * 形如：/trivial/serviceA/providers/127.0.0.1:7000, {version:1.0, open:true}
+         */
         String connectString=zkHost+":"+zkPort;
         zooKeeper=new ZooKeeper(connectString,sessionTimeOut,(event)->{
             //多级节点要求父级为persistent
@@ -143,8 +147,8 @@ public class RPCServer {
                                 , ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
                     }
                     for (String s : keySet) {
-                        Double version=1.0;
-                        Boolean open=true;
+                        Double version=1.0;//服务的版本
+                        Boolean open=true;//是否开启服务
                         Map<String, Object> infoMap = services.get(s);
                         if(infoMap!=null){//todo 增加权重信息
                             if(infoMap.containsKey("version")) version= (Double) infoMap.get("version");
@@ -195,15 +199,11 @@ public class RPCServer {
                                       @Override
                                       protected void initChannel(SocketChannel ch) throws Exception {
                                           ChannelPipeline pipeline = ch.pipeline();
-//                                          这种解码方式有误
-//                                          ByteBuf delimiter = Unpooled.copiedBuffer("}".getBytes());//“}”为分隔符
-//                                          //解码器循环解码，每解析出一个就往后传播
-//                                          pipeline.addLast(new DelimiterBasedFrameDecoder(2048,
-//                                                  false, delimiter));
+                                          /**
+                                           * 对json数据进行编码解码，编码时，增加一个int 表示json数据的大小
+                                           */
                                           pipeline.addLast(new JsonEncoder());
                                           pipeline.addLast(new JsonDecoder());
-//                                          pipeline.addLast(new StringEncoder());//outbound编码器
-//                                          pipeline.addLast(new StringDecoder());//inbound解码器
                                           pipeline.addLast(new IdleStateHandler(60*1000,
                                                   60*1000,allIdleTime, TimeUnit.MILLISECONDS));
                                           pipeline.addLast(new RPCServerHandler());//业务处理器

@@ -8,10 +8,17 @@ package com.github.AllenDuke.dto;
  */
 public class ServerMessage {
 
-    private Long callerId;//调用者线程id
-    private Long count;//当前调用者的第n次调用
-    private Boolean isSucceed=true;//调用成功标志
-    private Object reselut;//调用结果，有可能为失败字符串提示
+    //调用者线程id
+    private Long callerId;
+
+    //第n次调用
+    private Long count;
+
+    //调用成功标志
+    private Boolean isSucceed=true;
+
+    //调用结果，有可能为失败字符串提示
+    private Object result;
 
     public ServerMessage(){}
 
@@ -19,7 +26,7 @@ public class ServerMessage {
         this.callerId = callerId;
         this.count = count;
         this.isSucceed = isSucceed;
-        this.reselut = reselut;
+        this.result = reselut;
     }
 
     public boolean isSucceed() {
@@ -47,11 +54,11 @@ public class ServerMessage {
     }
 
     public Object getReselut() {
-        return reselut;
+        return result;
     }
 
-    public void setReselut(Object reselut) {
-        this.reselut = reselut;
+    public void setReselut(Object result) {
+        this.result = result;
     }
 
     @Override
@@ -60,7 +67,7 @@ public class ServerMessage {
                 "callerId=" + callerId +
                 ", count=" + count +
                 ", isSucceed=" + isSucceed +
-                ", reselut=" + reselut +
+                ", reselut=" + result +
                 '}';
     }
 }

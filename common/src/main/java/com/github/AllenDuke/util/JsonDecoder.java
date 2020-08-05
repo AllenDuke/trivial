@@ -40,9 +40,8 @@ public class JsonDecoder extends ByteToMessageDecoder {
         }
 
         /**
-         * 读到的消息体长度如果小于我们传送过来的消息长度，则resetReaderIndex.
-         * 这个配合markReaderIndex使用的。
-         * 把readIndex重置到mark的地方
+         * 读到的消息体长度如果小于我们传送过来的消息长度，即半包，那么resetReaderIndex.
+         * 这个配合markReaderIndex使用的，把readIndex重置到mark的地方
          */
         if (in.readableBytes() < dataLength) {
             in.resetReaderIndex();
