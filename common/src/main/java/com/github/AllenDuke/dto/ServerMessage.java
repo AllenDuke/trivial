@@ -9,7 +9,7 @@ package com.github.AllenDuke.dto;
 public class ServerMessage {
 
     //调用者线程id
-    private Long callerId;
+    private Short callerId;
 
     //第n次调用
     private Long count;
@@ -22,7 +22,7 @@ public class ServerMessage {
 
     public ServerMessage(){}
 
-    public ServerMessage(long callerId, long count, boolean isSucceed, Object reselut) {
+    public ServerMessage(short callerId, long count, boolean isSucceed, Object reselut) {
         this.callerId = callerId;
         this.count = count;
         this.isSucceed = isSucceed;
@@ -45,11 +45,11 @@ public class ServerMessage {
         this.count = count;
     }
 
-    public long getCallerId() {
+    public short getCallerId() {
         return callerId;
     }
 
-    public void setCallerId(long callerId) {
+    public void setCallerId(short callerId) {
         this.callerId = callerId;
     }
 

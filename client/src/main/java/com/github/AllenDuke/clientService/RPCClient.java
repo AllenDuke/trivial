@@ -212,7 +212,7 @@ public class RPCClient {
                                 for (Object arg : args) {
                                     argTypes.append(arg.getClass().getName()+ " ");
                                 }
-                                ClientMessage clientMessage = new ClientMessage(Thread.currentThread().getId(),
+                                ClientMessage clientMessage = new ClientMessage((short) Thread.currentThread().getId(),
                                         className, method.getName(), args,argTypes.toString());
 
                                 /**

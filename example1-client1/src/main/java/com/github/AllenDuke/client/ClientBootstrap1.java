@@ -45,7 +45,7 @@ public class ClientBootstrap1 {
                 System.out.println("调用超时");
             }
             try {
-                Thread.sleep(3000);
+                Thread.sleep(11000);
             } catch (InterruptedException e) {
 
             }
@@ -53,7 +53,7 @@ public class ClientBootstrap1 {
             ResultFuture<Integer> future1 = genericService.invokeAsy("Calculator", "add",
                     new Object[]{3, "4"});
             try {
-                System.out.println(future.get(10, TimeUnit.MILLISECONDS) == null);
+                System.out.println(future.get(100, TimeUnit.MILLISECONDS) == null);
             } catch (Exception e) {
                 e.printStackTrace();
             }

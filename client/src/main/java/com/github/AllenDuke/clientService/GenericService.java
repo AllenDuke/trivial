@@ -26,7 +26,7 @@ public class GenericService {
         for (Object arg : args) {
             argTypes.append(arg.getClass().getName()+ " ");
         }
-        ClientMessage clientMessage = new ClientMessage(Thread.currentThread().getId(),
+        ClientMessage clientMessage = new ClientMessage((short) Thread.currentThread().getId(),
                 className, methodName, args,argTypes.toString());
         return RPCClient.getConnector().invokeAsy(clientMessage);//异步调用
     }

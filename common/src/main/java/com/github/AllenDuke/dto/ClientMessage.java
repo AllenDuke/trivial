@@ -16,7 +16,7 @@ public class ClientMessage {
     private static AtomicLong sum=new AtomicLong(0);
 
     //调用者线程id
-    private Long callerId;
+    private Short callerId;
 
     //要调用的类名
     private String className;
@@ -24,10 +24,10 @@ public class ClientMessage {
     //要调用的方法名
     private String methodName;
 
-    //方法的参数
+    //方法的参数，每一个参数可能有复杂的形式
     private Object[] args;
 
-    //参数原始类型，因为arg将会被json格式化
+    //参数原始类型，因为arg将会被json格式化成为JSONObject
     private String argTypes;
 
     //第count次调用
@@ -35,7 +35,7 @@ public class ClientMessage {
 
     public ClientMessage(){}
 
-    public ClientMessage(long callerId, String className, String methodName, Object[] args,String argTypes) {
+    public ClientMessage(short callerId, String className, String methodName, Object[] args,String argTypes) {
         this.callerId = callerId;
         this.className = className;
         this.methodName = methodName;
@@ -44,11 +44,11 @@ public class ClientMessage {
         this.count=sum.getAndIncrement();//sum++
     }
 
-    public long getCallerId() {
+    public short getCallerId() {
         return callerId;
     }
 
-    public void setCallerId(long callerId) {
+    public void setCallerId(short callerId) {
         this.callerId = callerId;
     }
 
