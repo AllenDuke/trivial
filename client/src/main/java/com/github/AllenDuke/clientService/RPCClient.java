@@ -53,9 +53,6 @@ public class RPCClient {
     //netty线程数
     private static int workerSize = 0;//为0将使用默认值：cpu核数*2
 
-    //业务处理器
-    public static RPCClientHandler clientHandler;
-
     //超时监听器，超时后会收到通知
     protected static TimeOutListener listener;
 
@@ -65,7 +62,7 @@ public class RPCClient {
     //zookeeper端口
     private static int zkPort;
 
-    //zookeeper客户端
+    //zookeeper操作客户端
     public static ZooKeeper zooKeeper;
 
     //zookeeper连接超时
@@ -74,7 +71,7 @@ public class RPCClient {
     //往zookeeper中订阅的服务
     private static Map<String, String> serviceNames;
 
-    //注册中心，用于寻找服务
+    //注册中心，用于寻找服务地址
     protected static Registry registry;
 
     //连接器，用于与服务端通信
@@ -217,6 +214,7 @@ public class RPCClient {
                                 }
                                 ClientMessage clientMessage = new ClientMessage(Thread.currentThread().getId(),
                                         className, method.getName(), args,argTypes.toString());
+
                                 /**
                                  * 如果没有返回值，就异步调用，不阻塞调用者线程。
                                  * todo 调用失败时如何处理？
@@ -228,6 +226,10 @@ public class RPCClient {
 //                                    if(result.getClass()!=Void.Type()) throw new RuntimeException("调用异常");
 //                                    return null;
                                 }
+
+                                /**
+                                 * 这里直接返回结果，用户自行判断结果的可行性，有可能时失败字符串提示
+                                 */
                                 Object result =connector.invoke(clientMessage);//同步调用
 //                    if(result.getClass()==method.getReturnType())
                                 return result;

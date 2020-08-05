@@ -12,7 +12,7 @@ import com.github.AllenDuke.dto.ClientMessage;
  */
 public class TimeOutEvent {
 
-    ClientMessage message;//应尽量缩减message的信息，避免不必要的传输
+    ClientMessage message;
     long createTime;
     int retryNum;
     RPCClientHandler clientHandler;//所处的连接

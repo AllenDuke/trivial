@@ -4,8 +4,6 @@ import com.github.AllenDuke.dto.ClientMessage;
 import com.github.AllenDuke.util.JsonDecoder;
 import com.github.AllenDuke.util.JsonEncoder;
 import io.netty.bootstrap.Bootstrap;
-import io.netty.buffer.ByteBuf;
-import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
@@ -13,9 +11,6 @@ import io.netty.channel.ChannelPipeline;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
-import io.netty.handler.codec.DelimiterBasedFrameDecoder;
-import io.netty.handler.codec.string.StringDecoder;
-import io.netty.handler.codec.string.StringEncoder;
 import lombok.extern.slf4j.Slf4j;
 
 import java.net.InetSocketAddress;
@@ -76,14 +71,8 @@ public class Connector {
                                 @Override
                                 protected void initChannel(SocketChannel ch) throws Exception {
                                     ChannelPipeline pipeline = ch.pipeline();
-//                                    这种解码方式有误
-//                                    ByteBuf delimiter = Unpooled.copiedBuffer("}".getBytes());//“}”为分隔符
-//                                    pipeline.addLast(new DelimiterBasedFrameDecoder(2048,
-//                                            false, delimiter));//不去除分割符
                                     pipeline.addLast(new JsonEncoder());
                                     pipeline.addLast(new JsonDecoder());
-//                                    pipeline.addLast(new StringEncoder());//outbound编码器
-//                                    pipeline.addLast(new StringDecoder());//inbound解码器
                                     pipeline.addLast(new RPCClientHandler());//业务处理器
                                 }
                             }
@@ -114,7 +103,7 @@ public class Connector {
             int serverPort = Integer.valueOf(serverAddr.substring(splitIndex + 1, serverAddr.length()));
             /**
              * 细节优化
-             * 这里不把sychronized加到方法头上，是为了尽量减少要同步的区域，尽量让同步在轻量级锁（自旋）上完成，避免升级
+             * 这里不把synchronized加到方法头上，是为了尽量减少要同步的区域，尽量让同步在轻量级锁（自旋）上完成，避免升级
              *
              * synchronized保证可见性，进入前清空缓存，再从主存中读，在其内写入的数据对其他线程可见(写回主存，
              * 其他线程再从主存中读)，所以可用HashMap
@@ -154,11 +143,8 @@ public class Connector {
         String serverHost = serverAddr.substring(0, splitIndex);
         int serverPort = Integer.valueOf(serverAddr.substring(splitIndex + 1, serverAddr.length()));
         //断连后的pipeline会移除添加进去的HandlerContext
-        ByteBuf delimiter = Unpooled.copiedBuffer("}".getBytes());//“}”为分隔符
-        pipeline.addLast(new DelimiterBasedFrameDecoder(2048,
-                false, delimiter));//不去除分割符
-        pipeline.addLast(new StringEncoder());//outbound编码器
-        pipeline.addLast(new StringDecoder());//inbound解码器
+        pipeline.addLast(new JsonEncoder());
+        pipeline.addLast(new JsonDecoder());
         pipeline.addLast(new RPCClientHandler());//业务处理器
         InetSocketAddress address = new InetSocketAddress(serverHost, serverPort);
         log.info("即将利用旧的连接：" + pipeline.channel() + "，新的服务地址：" + address);
@@ -178,6 +164,7 @@ public class Connector {
      */
     private RPCClientHandler findClientHandler(String serviceName) {
         RPCClientHandler clientHandler = connectedServiceHandlerMap.get(serviceName);
+
         if (clientHandler != null && clientHandler.getContext() != null) {//如果不是马上要断开的连接
             //检查该生产者是否进入了该服务的黑名单，以免当前clientHandler在间隙之中进入了黑名单
             Set<String> blackList = timeOutMap.get(serviceName);
@@ -187,12 +174,14 @@ public class Connector {
             if (!blackList.contains(remoteAddress)) return clientHandler;
             log.error("生产者：" + remoteAddress + "，已进入服务：" + serviceName + " 的黑名单");
         }
+
         String serverAddr = registry.findServer(serviceName, timeOutMap.get(serviceName));
         if(serverAddr==null){
             log.info("本次挑选的主机的服务："+serviceName+"，已经降级！尝试直连...");
             serverAddr=RPCClient.serverHost+":"+RPCClient.serverPort;
             log.info("直连地址为："+serverAddr);
         }
+
         //ChannelPipeline pipeline = idlePipelineQueue.poll();//防止并发构建连接
         ChannelPipeline pipeline = null;//暂不知道如何重用
         if (pipeline != null) {
@@ -203,6 +192,7 @@ public class Connector {
             connectedServiceHandlerMap.put(serviceName, clientHandler);//已建立连接
             return clientHandler;
         }
+
         createAndConnectChannel(serverAddr, serviceName);
         clientHandler = connectedServiceHandlerMap.get(serviceName);
         return clientHandler;

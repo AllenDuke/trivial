@@ -22,7 +22,7 @@ public class GenericService {
      */
     public ResultFuture invokeAsy(String className, String methodName, Object[] args){
         if(RPCClient.shutdown) throw new ShutDownException("当前RPCClient已经shutdown了");
-        StringBuilder argTypes=new StringBuilder(",argTypes:");;
+        StringBuilder argTypes=new StringBuilder(",argTypes:");
         for (Object arg : args) {
             argTypes.append(arg.getClass().getName()+ " ");
         }
