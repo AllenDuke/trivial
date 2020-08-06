@@ -9,11 +9,11 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 import lombok.extern.slf4j.Slf4j;
 
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.LockSupport;
@@ -42,13 +42,16 @@ public class RPCClientHandler extends SimpleChannelInboundHandler {
 //    private static final Map<Long, Condition> waitingThreadMap=new HashMap();
 
     //callerId与caller，park后加入，unpark后删除
-    private static final Map<Long, Thread> waiterMap=new HashMap<>();// todo 换ConcurrentHashMap来保证可见性
+    private static final Map<Long, Thread> waiterMap=new ConcurrentHashMap<>();
 
-    //各caller的当前调用结果（这里一直会缓存上一次的结果）
-    private static final Map<Long,Object> resultMap=new HashMap<>();
+    /**
+     * 各caller的当前调用结果（这里一直会缓存上一次的结果，直到你在获取后删除）
+     * 这里如果使用HashMap，当出现高并发时，线程很可能会
+     */
+    private static final Map<Long,Object> resultMap=new ConcurrentHashMap<>();
 
     //各caller的当前调用用次数，park后加入，unpark后删除
-    private static final Map<Long,Long> countMap=new HashMap<>();
+    private static final Map<Long,Long> countMap=new ConcurrentHashMap<>();
 
     //超时观察队列
     private static BlockingQueue<TimeOutEvent> waiterQueue;
@@ -93,7 +96,13 @@ public class RPCClientHandler extends SimpleChannelInboundHandler {
             else log.error("线程——"+callerId+" 第 "+count+" 次调用失败，"
                     +serverMessage.getReselut()+" 即将返回错误提示");
             resultMap.put(callerId,serverMessage.getReselut());
+
+            /**
+             * 如果caller为空，很可能是因为waiterMap是HashMap，并发时被误删。
+             */
             Thread caller = waiterMap.get(callerId);
+            if(caller==null) log.error("原在等待队列里的线程——"+callerId+" 现消失，接下来该线程很可能会发生阻塞，请注意！！！");
+
             LockSupport.unpark(caller);//这里如果是异步调用，那么caller先获得一次许可，避免lost-wake-up
             waiterMap.remove(callerId);
             countMap.remove(callerId);
@@ -153,8 +162,14 @@ public class RPCClientHandler extends SimpleChannelInboundHandler {
      * @author: 杜科
      * @date: 2020/2/27
      */
-    public void sendMsg(ClientMessage clientMessage) throws InterruptedException {
+    public void sendMsg(ClientMessage clientMessage){
         send(clientMessage,false);
+        Thread currentThread = Thread.currentThread();
+        boolean interrupted = currentThread.isInterrupted();
+        if(interrupted) log.error("线程"+currentThread.getId()+" 已被设置中断，park即将失效！");
+        /**
+         * park可能会毫无理由地返回，caller在getResult的时候要确认已有结果
+         */
         LockSupport.park();
     }
 
@@ -269,9 +284,26 @@ public class RPCClientHandler extends SimpleChannelInboundHandler {
      * @date: 2020/2/28
      */
     public Object getResult(long callerId){
+
+        while (!resultMap.containsKey(callerId)){
+            log.error("当前resultMap中没有线程——"+callerId+" 的结果，可能该线程park失败，或者被意外唤醒，继续park!");
+            /**
+             * park有可能毫无逻辑地返回
+             */
+            LockSupport.park();
+        }
+
         Object result=resultMap.get(callerId);
-        if(result!=null) resultMap.remove(callerId);
-        return result;
+        /**
+         * 理论上，result不会是null的。
+         */
+        if(result!=null) {
+            resultMap.remove(callerId);
+            return result;
+        }else{
+            log.error("当前resultMap中，线程——"+callerId+" 的结果为null，即将返回null ！");
+            return null;
+        }
     }
 
     //用于在主线程关闭netty线程组时，主线程往超时观察队列中加入一个节点，让超时观察者苏醒一次去检查关闭标志，进而结束

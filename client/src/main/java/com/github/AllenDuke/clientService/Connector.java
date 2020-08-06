@@ -1,6 +1,7 @@
 package com.github.AllenDuke.clientService;
 
 import com.github.AllenDuke.dto.ClientMessage;
+import com.github.AllenDuke.exception.UnknownException;
 import com.github.AllenDuke.util.JsonDecoder;
 import com.github.AllenDuke.util.JsonEncoder;
 import io.netty.bootstrap.Bootstrap;
@@ -206,14 +207,23 @@ public class Connector {
      * @author: 杜科
      * @date: 2020/3/10
      */
-    public Object invoke(ClientMessage clientMessage) throws InterruptedException {
+    public Object invoke(ClientMessage clientMessage){
         RPCClientHandler clientHandler = findClientHandler(clientMessage.getClassName());
         if(clientHandler==null){
             log.error("本次挑选的主机的服务："+clientMessage.getClassName()+"，已经降级，将不发起调用，直接返回null！");
             return null;
         }
         clientHandler.sendMsg(clientMessage);//caller park
-        return clientHandler.getResult(Thread.currentThread().getId());//unpark后获取结果
+        long callerId=Thread.currentThread().getId();
+        long count=clientMessage.getCount();
+        Object result = clientHandler.getResult(callerId);
+        /**
+         * 理论上 result不可能为空
+         */
+        if(result==null)
+            throw new UnknownException("出现严重的未知错误，线程——"+callerId+" 第 "+count
+                    +" 次调用，unpark后获取到空的结果，有可能该调用结果被意外删除！！！");
+        return result;//unpark后获取结果
     }
 
     /**

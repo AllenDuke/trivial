@@ -4,6 +4,7 @@ import com.alibaba.fastjson.JSON;
 import com.github.AllenDuke.clientService.Connector;
 import com.github.AllenDuke.clientService.RPCClient;
 import com.github.AllenDuke.clientService.RPCClientHandler;
+import com.github.AllenDuke.clientService.TimeOutResult;
 import com.github.AllenDuke.dto.ClientMessage;
 import com.github.AllenDuke.event.TimeOutEvent;
 import com.github.AllenDuke.exception.InvokeTimeOutException;
@@ -23,6 +24,9 @@ import java.util.concurrent.locks.LockSupport;
  */
 @Slf4j
 public class DefaultTimeOutListener implements TimeOutListener {
+
+    //调用超时的标志性结果
+    private static TimeOutResult timeOutResult=new TimeOutResult("调用超时");
 
     /**
      * @description: 对超时事件进行处理，
@@ -76,7 +80,7 @@ public class DefaultTimeOutListener implements TimeOutListener {
         Map<Long,Object> resultMap=clientHandler.getResultMap();
         Map<Long,Thread> waiterMap=clientHandler.getWaiterMap();
         Map<Long,Long> countMap=clientHandler.getCountMap();
-        resultMap.put(callerId,"调用超时");
+        resultMap.put(callerId,timeOutResult);
         log.error("线程——"+callerId+" 第 "+count
                 +"次调用超时，已重试 "+RPCClient.retryNum
                 +" 次，即将返回超时提示",new InvokeTimeOutException("调用超时"));

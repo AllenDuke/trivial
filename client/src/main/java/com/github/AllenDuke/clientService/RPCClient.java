@@ -3,10 +3,7 @@ package com.github.AllenDuke.clientService;
 
 import com.github.AllenDuke.dto.ClientMessage;
 import com.github.AllenDuke.event.TimeOutEvent;
-import com.github.AllenDuke.exception.ArgNotFoundExecption;
-import com.github.AllenDuke.exception.InitException;
-import com.github.AllenDuke.exception.ShutDownException;
-import com.github.AllenDuke.exception.SubscribeFailException;
+import com.github.AllenDuke.exception.*;
 import com.github.AllenDuke.listener.DefaultTimeOutListener;
 import com.github.AllenDuke.listener.TimeOutListener;
 import com.github.AllenDuke.util.YmlUtil;
@@ -81,10 +78,10 @@ public class RPCClient {
     private static boolean isAsy;
 
     //代理对象的缓存，key为类名如Calculator，value为jdk动态代理的实例
-    private static Map<String,Object> serviceProxys=new HashMap<>();
+    private static Map<String, Object> serviceProxys = new HashMap<>();
 
     //消息发送队列高水位
-    protected static int writeBufferHighWaterMark=10*1024*1024;
+    protected static int writeBufferHighWaterMark = 10 * 1024 * 1024;
 
     /**
      * @param timeOutListener 超时监听器
@@ -128,9 +125,9 @@ public class RPCClient {
         if (map.containsKey("timeout")) timeout = new Long((int) map.get("timeout"));
         if (map.containsKey("retryNum")) retryNum = (int) map.get("retryNum");
         if (map.containsKey("workerSize")) workerSize = (int) map.get("workerSize");
-        if(map.containsKey("isAsy")&&(int)map.get("isAsy")==1) isAsy=true;
-        if(map.containsKey("writeBufferHighWaterMark"))
-            writeBufferHighWaterMark=(int) map.get("writeBufferHighWaterMark");
+        if (map.containsKey("isAsy") && (int) map.get("isAsy") == 1) isAsy = true;
+        if (map.containsKey("writeBufferHighWaterMark"))
+            writeBufferHighWaterMark = (int) map.get("writeBufferHighWaterMark");
         connector = new Connector();
     }
 
@@ -145,14 +142,14 @@ public class RPCClient {
         if (map.containsKey("sessionTimeOut")) sessionTimeOut = (int) map.get("sessionTimeOut");
         if (map.containsKey("consumeServiceNames")) serviceNames = (Map<String, String>) map.get("consumeServiceNames");
         String connectString = zkHost + ":" + zkPort;
-        Thread main=Thread.currentThread();
+        Thread main = Thread.currentThread();
         zooKeeper = new ZooKeeper(connectString, sessionTimeOut, (event) -> {
             //多级节点要求父级为persistent
             try {
                 if (event.getState() == Watcher.Event.KeeperState.SyncConnected) {
-                    if (zooKeeper.exists("/trivial", null)==null){
+                    if (zooKeeper.exists("/trivial", null) == null) {
                         //先创建父级persistent节点
-                        zooKeeper.create("/trivial",null
+                        zooKeeper.create("/trivial", null
                                 , ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
                     }
                     if (serviceNames != null && serviceNames.keySet() != null)//这是不必要的参数
@@ -169,7 +166,7 @@ public class RPCClient {
                 } else log.error("订阅失败", new SubscribeFailException("订阅失败"));
             } catch (Exception e) {
                 log.error("节点创建异常", e);
-            }finally {
+            } finally {
                 LockSupport.unpark(main);//唤醒主线程
             }
         });
@@ -192,34 +189,35 @@ public class RPCClient {
      */
     public static Object getServiceImpl(final Class<?> serivceClass) {
         if (!isInit) throw new InitException("还没有init");
-        if(shutdown) throw new ShutDownException("当前RPCClient已经shutdown了");
+        if (shutdown) throw new ShutDownException("当前RPCClient已经shutdown了");
         Object proxyInstance = serviceProxys.get(serivceClass.getName());
         /**
          * 这里需要用双重检测锁，仅用CunrrentHashMap是做不到只实例化一次，而用双重检测锁后不需用ConcurrentHashMap。
          */
-        if(proxyInstance==null){
-            synchronized (serviceProxys){
+        if (proxyInstance == null) {
+            synchronized (serviceProxys) {
                 proxyInstance = serviceProxys.get(serivceClass.getName());
-                if(proxyInstance==null){
-                    proxyInstance= Proxy.newProxyInstance(Thread.currentThread().getContextClassLoader(),
+                if (proxyInstance == null) {
+                    proxyInstance = Proxy.newProxyInstance(Thread.currentThread().getContextClassLoader(),
                             new Class<?>[]{serivceClass}, (proxy, method, args) -> {
                                 //lamda表达式，匿名内部类实现InvokeInhandler接口，重写invoke方法
 
-                                if(shutdown) throw new ShutDownException("当前RPCClient已经shutdown了");
+                                if (shutdown) throw new ShutDownException("当前RPCClient已经shutdown了");
                                 String className = serivceClass.getName();
                                 className = className.substring(className.lastIndexOf(".") + 1);//去掉包名
-                                StringBuilder argTypes=new StringBuilder(",argTypes:");;
+                                StringBuilder argTypes = new StringBuilder(",argTypes:");
+                                ;
                                 for (Object arg : args) {
-                                    argTypes.append(arg.getClass().getName()+ " ");
+                                    argTypes.append(arg.getClass().getName() + " ");
                                 }
                                 ClientMessage clientMessage = new ClientMessage((short) Thread.currentThread().getId(),
-                                        className, method.getName(), args,argTypes.toString());
+                                        className, method.getName(), args, argTypes.toString());
 
                                 /**
                                  * 如果没有返回值，就异步调用，不阻塞调用者线程。
                                  * todo 调用失败时如何处理？
                                  */
-                                if(method.getReturnType()==void.class) {
+                                if (method.getReturnType() == void.class) {
                                     connector.invokeAsy(clientMessage);
                                     return null;
 //                                    Object result =connector.invoke(clientMessage);//同步调用
@@ -227,28 +225,31 @@ public class RPCClient {
 //                                    return null;
                                 }
 
+                                Object result = connector.invoke(clientMessage);//同步调用
+                                if (result.getClass() == TimeOutResult.class)
+                                    throw new InvokeTimeOutException("调用超时");
                                 /**
-                                 * 这里直接返回结果，用户自行判断结果的可行性，有可能时失败字符串提示
+                                 * 这里用的是jdk动态代理，最后result会被强转
                                  */
-                                Object result =connector.invoke(clientMessage);//同步调用
-//                    if(result.getClass()==method.getReturnType())
                                 return result;
                             });
-                    serviceProxys.put(serivceClass.getName(),proxyInstance);
+                    serviceProxys.put(serivceClass.getName(), proxyInstance);
                 }
             }
         }
         return proxyInstance;
     }
 
-    public static GenericService getGenericService(){return new GenericService();}
+    public static GenericService getGenericService() {
+        return new GenericService();
+    }
 
     public static void shutdown() {
         connector.shutDown();
         shutdown = true;//按netty线程组的关闭策略先让其完成相关工作，再去检查超时观察者
         if (timeout != -1) {//结束超时观察者
             RPCClientHandler.getWaiterQueue()//传入结束标志，唤醒可能正在阻塞的超时观察者
-                    .add(new TimeOutEvent(null, 0,null));
+                    .add(new TimeOutEvent(null, 0, null));
         }
     }
 

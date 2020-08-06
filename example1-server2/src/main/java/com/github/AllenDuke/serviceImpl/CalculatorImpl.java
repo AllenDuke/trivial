@@ -11,8 +11,8 @@ import com.github.AllenDuke.service.Calculator;
 public class CalculatorImpl implements Calculator {
 
     @Override
-    public Integer add(Integer a, String b) {
-        return a+Integer.valueOf(b);
+    public Integer add(Integer a, Integer b) {
+        return a+b;
     }
 
     @Override

@@ -6,7 +6,8 @@
 
     <groupId>com.github.AllenDuke</groupId>
     <artifactId>trivial</artifactId>
-    <version>1.1</version>
+    <version>1.2</version>
+
     <packaging>pom</packaging>
 
     <modules>
@@ -96,8 +97,14 @@
             <version>5.0.2.RELEASE</version>
         </dependency>
 
-
-
     </dependencies>
+
+    <distributionManagement>
+        <repository>
+            <id>localRepository</id>
+            <!-- 本地仓库地址-->
+            <url>file:D:\apache-maven-3.3.9\maven-repository</url>
+        </repository>
+    </distributionManagement>
 
 </project>

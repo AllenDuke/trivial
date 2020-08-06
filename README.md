@@ -72,9 +72,9 @@ example模块为样例，要安装lombok。
 4. 服务端比客户端简单，因为没有太多要同步的地方。
 ## BUG回忆录
 1. 消息丢失。connect方法调用时非阻塞，所以在真正要发送信息时确保已经连接成功，为此有时要自旋等待。
-2. 异步调用时，lost-wake-up。充分了利用LockSupport.unpark可以先调用先发放许可的特性。
+2. 异步调用时，lost-wake-up。充分了利用LockSupport.unpark可以先调用先发放许可的特性（但不能累积）。
 3. 客户端发送完大量信息后，连接关闭。一开始认为是客户端的问题。解决历程如下：
-   * 一开是认为是客户端的问题。
+   * 一开始认为是客户端的问题。
    * 尝试找到触发连接关闭的阈值，发现是在一次发送13条时触发。
    * 以为是触发了消息队列高水位，经排查不是。
    * 网上寻找相关问题无果。
@@ -89,7 +89,18 @@ example模块为样例，要安装lombok。
      上一次稳定版本中没有进行完备的测试即发送大量消息，导致现在才发现，验证了BUG发现越晚越难排查这句话。
      * 没有打印异常信息也就是重写的时候要小心。**细节啊，细节啊。**
 4. OOM，Direct内存溢出，没有释放请求ByteBuf，即没有继承SimpleChannelInboundHandler，没有fireChannelRead，
-也没有ReferenceCountUtil.release。继承SimpleChannelInboundHandler，重写channelRead0
+也没有ReferenceCountUtil.release。继承SimpleChannelInboundHandler，重写channelRead0。
+5. 在持续一段比较高的并发后，发现很多线程park在RPCClientHandler的send处。解决历程如下：
+   * 以为是我用了HashMap，在高并发的时候，一些调用结果被误删或者被覆盖，但是全部换上ConcurrentHashMap后，情况仍然存在。
+   * 仔细分析后，发现，线程获取到的null，理论上这绝对不会出现，它unpark后，要么获取服务发来的结果，要么获取超时结果，
+   但这里首次确实获得null，然后下次再发起调用时，发现存在上次服务端发来的结果，于是认为上次的结果没有去获取，于是park了。
+   * 再分析，得知这个null是由于没有正确的park造成的，首次park时直接返回，去获取结果，于是就拿到了null。
+   * park线程没有阻塞，在没有许可的条件下直接返回了，那么可能了caller被设置了中断标志，于是park才会直接返回。
+   * park前检查中断标志，发现线程并没有中断。
+   * 开始挠头。
+   * park是否有线程不安全的说法？并没有。
+   * 查看LockSupport.park()，发现有这么一段话，The call spuriously (that is, **for no reason**) returns，它有可能会无故返回！
+   * 至此问题得以解决，在park返回后，确定是否已有调用结果，如果没有那么在循环中park。
 
 ## 与dubbo相异之处
 1. trivial超时扫描线程使用blockingQueue；dubbo使用ConcurrentHashMap的值的集合视图。

@@ -8,7 +8,7 @@ package com.github.AllenDuke.service;
  */
 public interface Calculator {
 
-    Integer add(Integer a, String b);
+    Integer add(Integer a, Integer b);
 
     int multipy(Integer a, Integer b);
 }

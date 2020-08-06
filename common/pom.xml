@@ -5,12 +5,19 @@
     <parent>
         <groupId>com.github.AllenDuke</groupId>
         <artifactId>trivial</artifactId>
-        <version>1.1</version>
+        <version>1.2</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
     <artifactId>common</artifactId>
-    <version>1.1</version>
+    <version>1.2</version>
 
+    <distributionManagement>
+        <repository>
+            <id>localRepository</id>
+            <!-- 本地仓库地址-->
+            <url>file:D:\apache-maven-3.3.9\maven-repository</url>
+        </repository>
+    </distributionManagement>
 
 </project>
