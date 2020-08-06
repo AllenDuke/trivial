@@ -1,4 +1,5 @@
 # trivial
+当前最新版本为：1.2，https://github.com/AllenDuke/trivial/tree/1.2
 ## 简介
 这是一个简单的RPC框架，基于netty，利用了fastjson进行序列化和反序列化（因此要注意Number类的传输规则）。
 作为一个平凡的框架，它的好处在于让平凡的我们能看清像Dubbo那些优秀的框架的源头在哪里。
