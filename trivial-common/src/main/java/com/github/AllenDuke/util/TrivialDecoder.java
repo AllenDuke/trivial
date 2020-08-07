@@ -80,10 +80,13 @@ public class TrivialDecoder extends ByteToMessageDecoder {
     //读出一个单位
     private ServerMessage convertToServerMessage(ByteBuf in,int dataLength) {
         long rpcId = in.readLong();
+        boolean isSucceed=true;
+        if(rpcId<0){//最高位为1，即是负数
+            isSucceed=false;
+            rpcId-=0x8000000000000000L;
+        }
 
-        boolean isSucceed = in.readBoolean();
-
-        int resultLen=dataLength-8-1;
+        int resultLen=dataLength-8;
         byte[] tmp = new byte[resultLen];
         in.readBytes(tmp);
 

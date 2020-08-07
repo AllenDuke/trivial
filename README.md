@@ -1,6 +1,37 @@
 # trivial 1.3
-比起1.2，优化了通信协议。
+比起1.2，优化了通信协议，优化异步调用机制。
 ## 1.2通信协议
+消费者发送给生产者的信息由：4 Byte头部（记录接下来的数据长度）+ClientMessage（JSON字符串）。
+以
+```java
+ClientMessage clientMessage =new ClientMessage((short) 1, "Calculator", "add", new Object[]{1, 2}, "java.lang.Integer
+ java.lang.Integer");
+```
+为例。clientMessage经FastJson序列化后，共130 Byte，即 JSON.toJSONString(message).getBytes().length=130。于是 4+130=134 Byte。
+其中：
+1. 4 Byte的头部是**必须**的，因为当参数变得复杂时，不能仅仅以‘}’来作为clientMessage的结束符，因为在参数中很可能也会出现。
+2. 自动生成的调用id是**必须**的。
+3. 线程id**不是必须**的，在1.3中，修改了线程的等待的数据结构后，clientMessage中不再包含线程id。
+4. 要调用的类，方法，参数是**必须**的。
+5. 参数的原始类型是**必须**的。假如没有参数的原始类型而参数是一个复杂对象时，那么clientMessage整体经过JSON序列化后，
+在服务端反序列化时，参数的类型变为JSONObject。这样无法确定一个方法，只能确定类名，方法名，参数个数，虽然可以逐个遍历，但耗时，
+而且不能缓存。
+## 1.3通信协议
+消费者发送给生产者的信息由：4 Byte头部（记录接下来的数据长度）+8 Byte调用id + 2 Byte类名字节数 + 类名 + 2 Byte方法名字节数 + 方法名 + 参数（JSON字符串）。
+以
+```java
+ClientMessage clientMessage =new ClientMessage( "Calculator", "add", new Object[]{1, 2});
+```
+为例。与版本1.2一样的调用，数据量为 4+30=34 Byte，减少了100Byte。
+要点：
+1. 减少不必要的JSON序列化。1.2中对clientMessage整体进行序列化，这样会生成不必要的信息（参考json格式），如参数名"rpcId"，
+参数名"className"等等。将clientMessage拆开后，只对方法参数进行序列化，这样服务端可以将其反序列化为原来的样子，
+可以计算出参数的类型，减少了参数类型的传输。
+2. 4Byte 2Byte 可以1Byte中的某个数代替，作为各信息的分割符，这样也可减少，但增大一点范围，用来记录数据长度，
+这样在读取、判断半包时可以避免遍历，提升效率。
+
+另外：ServerMessage中成功标志记录在rpcId（8 Byte）中没有用到的最高位（符号位），同样减少了1 Byte。0为成功，1为失败，
+因为成功次数居多，可以减少运算。
 
 ## 简介
 这是一个简单的RPC框架，基于netty，利用了fastjson进行序列化和反序列化（因此要注意Number类的传输规则）。

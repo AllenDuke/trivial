@@ -53,14 +53,12 @@ public class TrivialEncoder extends MessageToByteEncoder<Object> {
             boolean succeed = message.isSucceed();
             byte[] result = JSON.toJSONString(message.getReselut()).getBytes();
 
-            out.writeInt(8+1+result.length);
+            out.writeInt(8+result.length);
 
+            //将没有使用到的最高位（符号位）置为1，0为成功，1为失败，因为成功次数居多，可以减少运算。
+            if(!succeed) rpcId^=0x8000000000000000L;
             out.writeLong(rpcId);
 
-            out.writeBoolean(succeed);
-
-            //最后一个的大小，服务端可以从上述推导得出
-//            out.writeInt(result.length);
             out.writeBytes(result);
             return;
         }
