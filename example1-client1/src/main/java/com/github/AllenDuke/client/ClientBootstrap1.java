@@ -25,10 +25,11 @@ public class ClientBootstrap1 {
          * 如果你依赖此结果，那么你应该针对每一次的调用进行获取结果，即调用future.get()
          */
         for (int j = 0; j < 10; j++) {
+            int finalJ = j;
             new Thread(()->{
                 long callerId=Thread.currentThread().getId();
                 for (int i = 0; i < 100; i++) {
-                    calculator.add((int) callerId,i);
+                    System.out.println(calculator.add(finalJ, i) == finalJ + i);
                     try {
                         Thread.sleep(5);
                     } catch (InterruptedException e) {

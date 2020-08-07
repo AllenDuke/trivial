@@ -1,4 +1,5 @@
-# trivial 1.2
+# trivial 1.3
+比起1.2，优化了通信协议。
 ## 简介
 这是一个简单的RPC框架，基于netty，利用了fastjson进行序列化和反序列化（因此要注意Number类的传输规则）。
 作为一个平凡的框架，它的好处在于让平凡的我们能看清像Dubbo那些优秀的框架的源头在哪里。
@@ -101,6 +102,7 @@ example模块为样例，要安装lombok。
    * park是否有线程不安全的说法？并没有。
    * 查看LockSupport.park()，发现有这么一段话，The call spuriously (that is, **for no reason**) returns，它有可能会无故返回！
    * 至此问题得以解决，在park返回后，确定是否已有调用结果，如果没有那么在循环中park。
+   * 注意：不能完全确定真的是因为LockSupport.park()无故返回，但我如此做后，问题不再出现。
 
 ## 与dubbo相异之处
 1. trivial超时扫描线程使用blockingQueue；dubbo使用ConcurrentHashMap的值的集合视图。
