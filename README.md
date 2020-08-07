@@ -27,8 +27,8 @@ ClientMessage clientMessage =new ClientMessage( "Calculator", "add", new Object[
 1. 减少不必要的JSON序列化。1.2中对clientMessage整体进行序列化，这样会生成不必要的信息（参考json格式），如参数名"rpcId"，
 参数名"className"等等。将clientMessage拆开后，只对方法参数进行序列化，这样服务端可以将其反序列化为原来的样子，
 可以计算出参数的类型，减少了参数类型的传输。
-2. 4Byte 2Byte 可以1Byte中的某个数代替，作为各信息的分割符，这样也可减少，但增大一点范围，用来记录数据长度，
-这样在读取、判断半包时可以避免遍历，提升效率。
+2. 4Byte 2Byte等可以1Byte中的某个数代替，用这个数作为各信息的分割符，这样也可减少数据量，但用4Byte 2Byte，来记录数据长度，虽然增大
+了数据量，但这样在读取、判断半包时可以避免遍历，提升效率。
 
 另外：ServerMessage中成功标志记录在rpcId（8 Byte）中没有用到的最高位（符号位），同样减少了1 Byte。0为成功，1为失败，
 因为成功次数居多，可以减少运算。
