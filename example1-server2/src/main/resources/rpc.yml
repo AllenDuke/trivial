@@ -2,7 +2,6 @@ server:
   name: server2
   host: 127.0.0.1
   port: 7000
-  packageName: com.github.AllenDuke.serviceImpl
   businessPoolModel: 0
   allIdleTime: 3000
   enableSpring: 0 #是否将环境置于spring中，默认0为否，1为是
@@ -10,7 +9,4 @@ zookeeper:
   host: 49.235.168.215
   port: 2181
   seesionTimeOut: 2000
-  provideServiceNames:
-    Calculator:
-    HelloService:
 

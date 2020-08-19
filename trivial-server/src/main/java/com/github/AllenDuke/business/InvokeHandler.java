@@ -44,7 +44,9 @@ public class InvokeHandler {
         /**
          * 并发时可能会进行多次put操作，但问题不大，put的是同一个Class对象。
          */
-        if (serviceImpl == null) serviceImpl = Class.forName(className);//找不到将抛异常
+        if (serviceImpl == null) {
+            serviceImpl = Class.forName(className);//找不到将抛异常
+        }
         classMap.put(className, serviceImpl);
         return serviceImpl;
     }
@@ -159,9 +161,9 @@ public class InvokeHandler {
         Object[] args = clientMessage.getArgs();
         String methodName = clientMessage.getMethodName();
         Class serviceImpl = findClass(className);
-        StringBuilder argTypes=new StringBuilder();
+        StringBuilder argTypes = new StringBuilder();
         for (Object arg : args) {
-            argTypes.append(arg.getClass().getName()+ " ");
+            argTypes.append(arg.getClass().getName() + " ");
         }
         Method method = findMethod(serviceImpl, methodName, args, argTypes.toString());
 //        args = resumeArgs(args, clientMessage.getArgTypes());

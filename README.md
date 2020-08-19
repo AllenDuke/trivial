@@ -22,7 +22,9 @@ ClientMessage clientMessage =new ClientMessage((short) 1, "Calculator", "add", n
 ```java
 ClientMessage clientMessage =new ClientMessage( "Calculator", "add", new Object[]{1, 2});
 ```
-为例。与版本1.2一样的调用，数据量为 4+30=34 Byte，减少了100Byte。
+为例。与版本1.2一样的调用，数据量为：
+8 + 2 + "Calculator".getBytes().length + 2 + "add".getBytes().length+JSON.toJSONString(new Object[]{1, 2}).getBytes
+().length=30。于是 4+30=34 Byte，减少了100Byte。
 要点：
 1. 减少不必要的JSON序列化。1.2中对clientMessage整体进行序列化，这样会生成不必要的信息（参考json格式），如参数名"rpcId"，
 参数名"className"等等。将clientMessage拆开后，只对方法参数进行序列化，这样服务端可以将其反序列化为原来的样子，
@@ -82,9 +84,9 @@ netty，并发，线程池，原子变量，阻塞队列，并发队列，synchr
 16. 服务端利用LRU缓存，实现简单的防护，防止恶意攻击。
 17. 增加动态服务降级，服务降级后，消费方不发起调用，直接返回null。
 18. 集成到spring项目中
+19. 增加了注解@TrivialScan, @TrivialService使用。使用参见模块example1-server2。
 ## 未来
 7. 优化LRU并发操作。
-8. 增加注解使用
 9. 可以为客户端不同种类任务定制不同的超时机制。
 10. 增加随机权重的负载均衡策略以及自定义策略。
 11. 下一版本中完善服务监控与动态治理（容错，降级等）。
@@ -167,4 +169,5 @@ example模块为样例，要安装lombok。
 dubbo加入业务线程池，接收到结果时，io线程封装成一个任务交予业务线程池，由业务线程池去唤醒调用者线程。如图：
 ![dubbo-invokeProcedure](./image/dubbo-invokeProcedure.PNG)   
 3. trivial的协议中，传输的数据量似乎更小。
+
 如果你觉得对你有帮助的话，就给个star吧。

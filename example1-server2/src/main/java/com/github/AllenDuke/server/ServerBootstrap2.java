@@ -1,6 +1,7 @@
 package com.github.AllenDuke.server;
 
 
+import com.github.AllenDuke.annotation.TrivialScan;
 import com.github.AllenDuke.producerService.RPCServer;
 
 /**
@@ -9,11 +10,12 @@ import com.github.AllenDuke.producerService.RPCServer;
  * @contact AllenDuke@163.com
  * @since 2020/2/11
  */
+@TrivialScan(path = "com.github.AllenDuke.serviceImpl")
 public class ServerBootstrap2 {
 
     public static void main(String[] args) throws Exception {
 
 //        RPCServer.startServer(new ThreadPoolService(1,2,3000,10));
-        RPCServer.startServer();
+        RPCServer.startServer(ServerBootstrap2.class);
     }
 }

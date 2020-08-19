@@ -1,5 +1,6 @@
 package com.github.AllenDuke.serviceImpl;
 
+import com.github.AllenDuke.annotation.TrivialService;
 import com.github.AllenDuke.service.Calculator;
 
 /**
@@ -8,6 +9,7 @@ import com.github.AllenDuke.service.Calculator;
  * @contact AllenDuke@163.com
  * @since 2020/2/11
  */
+@TrivialService
 public class CalculatorImpl implements Calculator {
 
     @Override

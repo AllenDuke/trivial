@@ -17,7 +17,7 @@ public class ServerBootstrap1 {
 
     public static void main(String[] args) throws Exception {
 
-        RPCServer.startServer(new ThreadPoolExecutor(2,4,3000,
+        RPCServer.startServer(ServerBootstrap1.class,new ThreadPoolExecutor(2,4,3000,
                 TimeUnit.MILLISECONDS,new LinkedBlockingQueue<Runnable>(150)));
     }
 }
