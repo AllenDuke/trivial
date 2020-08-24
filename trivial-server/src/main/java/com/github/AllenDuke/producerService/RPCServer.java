@@ -134,6 +134,8 @@ public class RPCServer {
             Map<String, Object> map = new HashMap<>();
             map.put("open", trivialService.open());
             map.put("version", trivialService.version());
+
+            /* 暴露服务实现的接口 */
             for (Class cInterface : c.getInterfaces()) {
                 services.put(cInterface.getSimpleName(), map); /* 不用全限定名 */
             }

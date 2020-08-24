@@ -1,5 +1,5 @@
-# trivial 1.3
-比起1.2，优化了通信协议，优化异步调用机制。
+# trivial 1.4
+比起版本1.3，增加了注解@TrivialScan与@TrivialService的使用。
 ## 1.2通信协议
 消费者发送给生产者的信息由：4 Byte头部（记录接下来的数据长度）+ClientMessage（JSON字符串）。
 以
