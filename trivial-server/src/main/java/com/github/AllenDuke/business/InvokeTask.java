@@ -1,6 +1,5 @@
 package com.github.AllenDuke.business;
 
-import com.alibaba.fastjson.JSON;
 import com.github.AllenDuke.dto.ClientMessage;
 import com.github.AllenDuke.dto.ServerMessage;
 import com.github.AllenDuke.exception.MethodNotFoundException;
@@ -17,14 +16,11 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class InvokeTask implements Runnable {
 
-    //客户端发来的信息
-    private ClientMessage clientMessage;
+    private ClientMessage clientMessage; /* 客户端发来的信息 */
 
-    //调用处理器
-    private InvokeHandler invokehandler;
+    private InvokeHandler invokehandler; /* 调用处理器 */
 
-    //当前channel的上下文，用于调用writeAndFlush
-    private ChannelHandlerContext ctx;
+    private ChannelHandlerContext ctx; /* 当前channel的上下文，用于调用writeAndFlush */
 
     public InvokeTask(ClientMessage clientMessage, InvokeHandler invokehandler, ChannelHandlerContext ctx){
         this.clientMessage=clientMessage;
@@ -41,7 +37,7 @@ public class InvokeTask implements Runnable {
             log.error("找不到要调用的类，放弃本次调用，即将通知调用者",e);
             ServerMessage serverMessage=new ServerMessage(clientMessage.getRpcId()
                     , false,"找不到要调用的类，请检查类名");
-            ctx.writeAndFlush(JSON.toJSONString(serverMessage));
+            ctx.writeAndFlush(serverMessage);
             RPCServerHandler handler = (RPCServerHandler) ctx.handler();
             handler.recordInvokeException(ctx,e);
             return;
@@ -49,7 +45,7 @@ public class InvokeTask implements Runnable {
             log.error("找不到要调用的方法，放弃本次调用，即将通知调用者",e);
             ServerMessage serverMessage=new ServerMessage(clientMessage.getRpcId()
                     , false,"找不到要调用的方法，请检查方法名和参数");
-            ctx.writeAndFlush(JSON.toJSONString(serverMessage));
+            ctx.writeAndFlush(serverMessage);
             RPCServerHandler handler = (RPCServerHandler) ctx.handler();
             handler.recordInvokeException(ctx,e);
             return;
@@ -57,13 +53,13 @@ public class InvokeTask implements Runnable {
             log.error("方法调用异常，放弃本次调用，即将通知调用者",e);
             ServerMessage serverMessage=new ServerMessage(clientMessage.getRpcId()
                     , false,"服务器的实现方法调用异常");
-            ctx.writeAndFlush(JSON.toJSONString(serverMessage));
+            ctx.writeAndFlush(serverMessage);
             RPCServerHandler handler = (RPCServerHandler) ctx.handler();
             handler.recordInvokeException(ctx,e);
             return;
         }
         ServerMessage serverMessage=new ServerMessage(clientMessage.getRpcId(),true,result);
         log.info("实现方法调用成功，即将返回信息："+serverMessage);
-        ctx.writeAndFlush(JSON.toJSONString(serverMessage));//转换为json文本，由netty线程发送
+        ctx.writeAndFlush(serverMessage); /* 封装成一个任务，由netty线程发送 */
     }
 }

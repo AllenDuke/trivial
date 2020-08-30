@@ -5,12 +5,12 @@
     <parent>
         <groupId>com.github.AllenDuke</groupId>
         <artifactId>trivial</artifactId>
-        <version>1.3</version>
+        <version>1.4</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
     <artifactId>trivial-client</artifactId>
-    <version>1.3</version>
+    <version>1.4</version>
     <build>
         <plugins>
             <plugin>
@@ -28,7 +28,7 @@
         <dependency>
             <groupId>com.github.AllenDuke</groupId>
             <artifactId>trivial-common</artifactId>
-            <version>1.3</version>
+            <version>1.4</version>
         </dependency>
     </dependencies>
 

@@ -4,7 +4,7 @@ import java.lang.annotation.*;
 
 /**
  * @author 杜科
- * @description
+ * @description 作用于类上的注解，应该把它贴在主类上，类似springboot的@SpringbootApplication注解那样使用
  * @contact AllenDuke@163.com
  * @date 2020/8/18
  */

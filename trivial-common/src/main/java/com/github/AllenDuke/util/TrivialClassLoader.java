@@ -14,7 +14,7 @@ import java.util.jar.JarFile;
 
 /**
  * @author 杜科
- * @description 自定义类加载器
+ * @description 自定义类加载器 在trivial中，这里只用户扫描，不去加载
  * @contact 15521177704
  * @since 2019/11/11
  */

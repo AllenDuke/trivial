@@ -19,5 +19,6 @@ public class ServerBootstrap1 {
 
         RPCServer.startServer(ServerBootstrap1.class,new ThreadPoolExecutor(2,4,3000,
                 TimeUnit.MILLISECONDS,new LinkedBlockingQueue<Runnable>(150)));
+//        RPCServer.startServer(ServerBootstrap1.class);
     }
 }

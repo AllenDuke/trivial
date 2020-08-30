@@ -8,11 +8,11 @@ server:
   businessPoolModel: 1 #缺省为0，0为不开启，1为使用jdk线程池，2为使用自实现线程池
   allIdleTime: 3000
 zookeeper:
-  host: 49.235.168.215
+  host: 192.168.1.53
   port: 2181
   seesionTimeOut: 2000
-  services: #用于向zookeeper中注册，向外暴露
+  provideServiceNames: #用于向zookeeper中注册，向外暴露
     Calculator:
       version: 1.0
-      open: false #默认open
+      open: true #默认open
 

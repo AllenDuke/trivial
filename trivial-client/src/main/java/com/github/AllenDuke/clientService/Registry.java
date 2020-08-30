@@ -18,7 +18,7 @@ public class Registry {
 
     private ZooKeeper zooKeeper=RPCClient.zooKeeper;
 
-    //本地存根，key为服务名，value的提供该服务的主机列表
+    /* 本地存根，key为服务名，value的提供该服务的主机列表 */
     //todo 是否用ConcurrentHashMap换取可见性，findServer方法有解释
     private final Map<String,List<String>> addrMem=new HashMap<>();
 
@@ -57,13 +57,13 @@ public class Registry {
     public String findServer(String serviceName, Set<String> blackSet) {
         if(blackSet==null||blackSet.size()==0) return findServer(serviceName);
         List<String> children=addrMem.get(serviceName);
-        if(children!=null){//如果有本地存根，总是先过滤，防止黑名单变动
+        if(children!=null){ /* 如果有本地存根，总是先过滤，防止黑名单变动 */
             for (int i = 0; i < children.size();) {
                 if(blackSet.contains(children.get(i))) children.remove(i);
                 else i++;
             }
         }
-        if(children==null){//过滤后没有存活的
+        if(children==null){ /* 过滤后没有存活的 */
             try {
                 children= zooKeeper.getChildren("/trivial/" + serviceName + "/providers", null);
             } catch (Exception e) {
@@ -91,8 +91,8 @@ public class Registry {
             log.error("找不到服务",new ServiceNotFoundException("找不到服务："+serviceName));
             return null;
         }
-        addrMem.put(serviceName,children);//更新本地存根（过滤黑名单）
-        int rand= new Random().nextInt(children.size());//随机返回children.size为上界的非负数
+        addrMem.put(serviceName,children); /* 更新本地存根（过滤黑名单） */
+        int rand= new Random().nextInt(children.size()); /* 随机返回children.size为上界的非负数 */
         String addr=children.get(rand);
         return verifyNodeInfo(addr,serviceName);
     }
@@ -114,7 +114,7 @@ public class Registry {
                 data = zooKeeper.getData("/trivial/" + serviceName + "/providers/" + addr, null, stat);
             } catch (Exception e) {
                 log.error(e.getMessage());
-                //因为有可能zookeeper已经宕机，所以直接返回addr
+                /* 因为有可能zookeeper已经宕机，所以直接返回addr */
                 return addr;
             }
         }

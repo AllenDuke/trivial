@@ -42,60 +42,60 @@ import java.util.concurrent.TimeUnit;
 @Slf4j
 public class RPCServer {
 
-    //服务实现类所在的包名，将来接收到消费者的请求时，只会扫描该包下的类 todo 优化
+    /* 服务实现类所在的包名，将来接收到消费者的请求时，只会扫描该包下的类 todo 优化 */
     public static String packageName;
 
-    //主机地址
+    /* 主机地址 */
     private static String host;
 
-    //端口
+    /* 端口 */
     private static int port;
 
-    //netty boss数量
+    /* netty boss数量 */
     private static int bossSize = 1;
 
-    //netty worker数量
+    /* netty worker数量 */
     private static int workerSize = 0;//为0将使用默认值：cpu核数*2
 
-    //业务线程池模型
+    /* 业务线程池模型 */
     protected static int businessPoolModel = 0;//0为不开启，1为使用jdk线程池，2为使用自实现线程池
 
-    //jdk线程池
+    /* jdk线程池 */
     protected static ThreadPoolExecutor executor;
 
-    //自实现线程池
+    /* 自实现线程池 */
     protected static ThreadPoolService poolService;
 
-    //zookeeper地址
+    /* zookeeper地址 */
     private static String zkHost;
 
-    //zookeeper端口
+    /* zookeeper端口 */
     private static int zkPort;
 
-    //zookeeper操作客户端
+    /* zookeeper操作客户端 */
     private static ZooKeeper zooKeeper;
 
-    //zookeeper连接超时时限
+    /* zookeeper连接超时时限 */
     private static int sessionTimeOut = 1000;
 
-    //往zookeeper中注册的服务，key为服务名，value为Map for{version: 1.0, open: true}
+    /* 往zookeeper中注册的服务，key为服务名，value为Map for{version: 1.0, open: true} */
     private static Map<String, Map<String, Object>> services;
 
-    //默认读写空闲达10s后，服务提供方断开连接
-    protected static int allIdleTime = 10 * 1000;//单位毫秒
+    /* 默认读写空闲达10s后，服务提供方断开连接 */
+    protected static int allIdleTime = 60 * 1000; /* 单位毫秒 */
 
-    //是否启用Spring，取决于用户要暴露的服务是否存在于Spring环境中
+    /* 是否启用Spring，取决于用户要暴露的服务是否存在于Spring环境中 */
     public static int enableSpring;
 
     public static TrivialClassLoader classLoader;
 
-    //配置jdk线程池，启动服务端
+    /* 配置jdk线程池，启动服务端 */
     public static void startServer(Class mainClass, ThreadPoolExecutor poolExecutor) throws Exception {
         executor = poolExecutor;
         startServer(mainClass);
     }
 
-    //配置自实现线程池，启动服务端
+    /* 配置自实现线程池，启动服务端 */
     public static void startServer(Class mainClass, ThreadPoolService threadPoolService) throws Exception {
         poolService = threadPoolService;
         startServer(mainClass);
@@ -106,7 +106,7 @@ public class RPCServer {
         TrivialScan trivialScan = (TrivialScan) mainClass.getAnnotation(TrivialScan.class);
         if (trivialScan == null) return;
 
-        /* @Trivial中path将作为暴露服务的包名，将用于拼接客户端发送的简单类名成全限定名 */
+        /* @TrivialScan中path将作为暴露服务的包名，将用于拼接客户端发送的简单类名成全限定名 */
         packageName = trivialScan.path();
         services = new HashMap<>();
 
@@ -142,7 +142,7 @@ public class RPCServer {
         }
     }
 
-    //配置基础参数
+    /* 配置基础参数 */
     private static void config() {
         Map<String, Object> map = YmlUtil.getResMap("server");
         if (map == null) throw new ArgNotFoundExecption("rpc.yml缺少参数server！");
@@ -164,15 +164,15 @@ public class RPCServer {
         if (enableSpring == 1) initSpring();
     }
 
-    //初始化spring环境
+    /* 初始化spring环境 */
     private static void initSpring() {
 
     }
 
-    //配置zookeeper参数
+    /* 配置zookeeper参数 */
     private static void zkConfig() throws Exception {
         Map<String, Object> map = YmlUtil.getResMap("zookeeper");
-        if (map == null) return;//没有配置就直接略过
+        if (map == null) return; /* 没有配置就直接略过 */
         if (!map.containsKey("host")) throw new ArgNotFoundExecption("rpc.yml缺少参数host!");
         zkHost = (String) map.get("host");
         if (!map.containsKey("port")) throw new ArgNotFoundExecption("rpc.yml缺少参数port!");
@@ -190,30 +190,30 @@ public class RPCServer {
          */
         String connectString = zkHost + ":" + zkPort;
         zooKeeper = new ZooKeeper(connectString, sessionTimeOut, (event) -> {
-            //多级节点要求父级为persistent
+            /* 多级节点要求父级为persistent */
             try {
                 if (event.getState() == Watcher.Event.KeeperState.SyncConnected) {
                     if (zooKeeper.exists("/trivial", null) == null) {
-                        //先创建父级persistent节点
+                        /* 先创建父级persistent节点 */
                         zooKeeper.create("/trivial", null
                                 , ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
                     }
                     for (String s : keySet) {
-                        Double version = 1.0;//服务的版本
-                        Boolean open = true;//是否开启服务
+                        Double version = 1.0; /* 服务的版本 */
+                        Boolean open = true; /* 是否开启服务 */
                         Map<String, Object> infoMap = services.get(s);
-                        if (infoMap != null) {//todo 增加权重信息
+                        if (infoMap != null) { //todo 增加权重信息
                             if (infoMap.containsKey("version")) version = (Double) infoMap.get("version");
                             if (infoMap.containsKey("open")) open = (Boolean) infoMap.get("open");
                         }
                         if (zooKeeper.exists("/trivial/" + s, null) == null) {
-                            //先创建父级persistent节点
+                            /* 先创建父级persistent节点 */
                             zooKeeper.create("/trivial/" + s, null
                                     , ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
                             zooKeeper.create("/trivial/" + s + "/providers", null
                                     , ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
                         }
-                        //创建当前ephemeral节点
+                        /* 创建当前ephemeral节点 */
                         zooKeeper.create("/trivial/" + s + "/providers/" + (host + ":" + port),
                                 (version + "," + open).getBytes(CharsetUtil.UTF_8),
                                 ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.EPHEMERAL);
@@ -227,36 +227,40 @@ public class RPCServer {
         });
     }
 
-    //启动netty线程组
+    /* 启动netty线程组 */
     public static void startServer(Class mainClass) throws Exception {
         handleMainClass(mainClass);
         zkConfig();
         config();
-        new Thread(() -> {//转移阻塞点，使主线程得以返回
+        new Thread(() -> { /* 转移阻塞点，使主线程得以返回 */
             startServer0();
         }).start();
     }
 
-    //指定boss worker数量启动netty线程组
+    /* 指定boss worker数量启动netty线程组 */
     private static void startServer0() {
         EventLoopGroup bossGroup = new NioEventLoopGroup(bossSize);
         EventLoopGroup workerGroup = new NioEventLoopGroup(workerSize);
         try {
             ServerBootstrap serverBootstrap = new ServerBootstrap();
-            //serverBootstrap.childOption(ChannelOption.SO_KEEPALIVE,true);//开启tcp keepAlive
+            /**
+             * 开启tcp keepAlive,，当开启后，会有tcp层面上的心跳机制，我们应该关闭而去做我们自己的更为定制化的心跳探测
+             */
+            //serverBootstrap.childOption(ChannelOption.SO_KEEPALIVE,true);
             serverBootstrap.group(bossGroup, workerGroup)
-                    .channel(NioServerSocketChannel.class)//水平触发，EpollServerSocketChannel边缘触发
-                    .childHandler(//作用于workerGroup
-                            new ChannelInitializer<SocketChannel>() {//初始化器也算是一个handler,在pipeline中
-                                //初始化socketChannel，完成后从pipeline中移除
+                    .channel(NioServerSocketChannel.class) /* channel类型水平触发，EpollServerSocketChannel边缘触发 */
+                    .childHandler( /* 作用于workerGroup */
+                            new ChannelInitializer<SocketChannel>() {
+                                /**
+                                 * 初始化器也算是一个handler,在pipeline中初始化socketChannel，完成后从pipeline中移除
+                                 */
                                 @Override
                                 protected void initChannel(SocketChannel ch) throws Exception {
                                     ChannelPipeline pipeline = ch.pipeline();
-                                    /**
-                                     * 对json数据进行编码解码，编码时，增加一个int 表示json数据的大小
-                                     */
                                     pipeline.addLast(new TrivialEncoder());
                                     pipeline.addLast(new TrivialDecoder(ClientMessage.class));
+
+                                    /* 默认1分钟内无读无写则空闲，最终取决于用户配置的参数allIdleTime */
                                     pipeline.addLast(new IdleStateHandler(60 * 1000,
                                             60 * 1000, allIdleTime, TimeUnit.MILLISECONDS));
                                     pipeline.addLast(new RPCServerHandler());//业务处理器
@@ -265,7 +269,7 @@ public class RPCServer {
                     );
             ChannelFuture channelFuture = serverBootstrap.bind(host, port).sync();
             log.info("server is ready! ");
-            channelFuture.channel().closeFuture().sync();//同步方法，直到有结果才往下执行
+            channelFuture.channel().closeFuture().sync(); /* 同步方法，直到有结果才往下执行 */
         } catch (Exception e) {
             e.printStackTrace();
         } finally {

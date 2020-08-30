@@ -4,6 +4,7 @@ import com.github.AllenDuke.dto.ClientMessage;
 import com.github.AllenDuke.dto.ServerMessage;
 import com.github.AllenDuke.event.TimeOutEvent;
 import com.github.AllenDuke.exception.MsgSendingFailException;
+import com.github.AllenDuke.exception.UnknownException;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 import lombok.extern.slf4j.Slf4j;
@@ -51,6 +52,8 @@ public class RPCClientHandler extends SimpleChannelInboundHandler {
      */
     private static final Map<Long,Object> resultMap=new ResultMap<>();
 
+    private static final Map<Long,ResultFuture> resultFutureMap=new ConcurrentHashMap<>();
+
     //超时观察队列
     private static BlockingQueue<TimeOutEvent> waiterQueue;
     static {if(RPCClient.timeout!=-1)waiterQueue=new LinkedBlockingQueue<>();}
@@ -82,20 +85,34 @@ public class RPCClientHandler extends SimpleChannelInboundHandler {
         log.info("收到信息："+msg+"，准备解码，返回结果");
         ServerMessage serverMessage= (ServerMessage) msg;
         long rpcId=serverMessage.getRpcId();
-        if(waiterMap.containsKey(rpcId)){//是本次调用结果
+        Object result=serverMessage.getReselut();
+        resultMap.put(rpcId,result);
+
+        if(resultFutureMap.containsKey(rpcId)){ /* 这是一个异步调用 */
+            ResultFuture resultFuture = resultFutureMap.get(rpcId);
+            synchronized (resultFuture){
+                /* 唤醒可能异步调用了resultFuture.get的caller */
+                resultFuture.notifyAll();
+            }
+            return;
+        }
+
+        if(waiterMap.containsKey(rpcId)){ /* 这是一个同步调用 */
             Thread caller = waiterMap.get(rpcId);
+            if(caller==null) {
+                throw new UnknownException("出现严重的未知错误，原在等待队列里的线程——等待的调用 "+rpcId+" 现消失！！！");
+            }
+
             long callerId=caller.getId();
             if(serverMessage.isSucceed()) log.info("收到发送给线程——"+callerId+" 的成功信息，即将返回结果");
             else log.error("线程——"+callerId+" 第 "+rpcId+" 次调用失败，" +serverMessage.getReselut()+" 即将返回错误提示");
-            resultMap.put(rpcId,serverMessage.getReselut());
 
-            if(caller==null) log.error("原在等待队列里的线程——"+callerId+" 现消失，接下来该线程很可能会发生阻塞，请注意！！！");
-
-            LockSupport.unpark(caller);//这里如果是异步调用，那么caller先获得一次许可，避免lost-wake-up
             waiterMap.remove(rpcId);
-        }else {//如果断开了连接是收不到历史信息的
-            log.info("收到第——"+rpcId+" 次的历史调用结果，即将即将抛弃");//上次调用超时
+            LockSupport.unpark(caller);
+            return;
         }
+
+        log.error("接收到一个超时的调用结果，该调用为———"+rpcId+"，即将抛弃！");
     }
 
     @Override
@@ -168,8 +185,9 @@ public class RPCClientHandler extends SimpleChannelInboundHandler {
      * @author: 杜科
      * @date: 2020/3/27
      */
-    public void sendMsgAsy(ClientMessage clientMessage){
+    public void sendMsgAsy(ClientMessage clientMessage,ResultFuture resultFuture){
         send(clientMessage,true);
+        resultFutureMap.put(clientMessage.getRpcId(),resultFuture);
     }
 
     /**
@@ -186,10 +204,10 @@ public class RPCClientHandler extends SimpleChannelInboundHandler {
         long rpcId=clientMessage.getRpcId();
 
         /**
-         * 同步或者异步调用，caller都加入waiterMap当中，
-         * 若为异步调用，可利用此来避免lost-wake-up
+         * 同步调用，caller都加入waiterMap当中，
+         * 异步调用不需要加入waiterMap，因为不需要通过park 与unpark。在要获取异步调用结果时，另外有同步机制。
          */
-        waiterMap.put(rpcId,Thread.currentThread());
+        if(!isAsy) waiterMap.put(rpcId,Thread.currentThread());
         /**
          * 细节优化
          * 把自旋移到这里是为了，减少自旋发生的可能性，在真正要用的时候才去判断自旋，让context尽可能已经连接。
@@ -268,7 +286,7 @@ public class RPCClientHandler extends SimpleChannelInboundHandler {
      * @author: 杜科
      * @date: 2020/2/28
      */
-    public Object getResult(long rpcId){
+    public Object getResultSyn(long rpcId){
         long callerId=Thread.currentThread().getId();
         while (!resultMap.containsKey(rpcId)){
             log.error("当前resultMap中没有线程——"+callerId+" 第 "+rpcId+" 次调用的结果，可能该线程park失败，或者被意外唤醒，继续park!");
@@ -289,6 +307,14 @@ public class RPCClientHandler extends SimpleChannelInboundHandler {
         }
 
         return result;
+    }
+
+    public Object getResultAsy(long rpcId){
+        /**
+         * 当caller调用了resultFuture.get后，调用，caller自己保证还在有效期内，即在发起rpc后5分钟内调用了这个方法。
+         * 这样的话，为空则表示还没有结果，否则已有结果。
+         */
+        return resultMap.get(rpcId);
     }
 
     //用于在主线程关闭netty线程组时，主线程往超时观察队列中加入一个节点，让超时观察者苏醒一次去检查关闭标志，进而结束

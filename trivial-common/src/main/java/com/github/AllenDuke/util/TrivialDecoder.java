@@ -19,12 +19,12 @@ import java.util.List;
 @Slf4j
 public class TrivialDecoder extends ByteToMessageDecoder {
 
-    // 消息头：发送端写的是一个int，占用4字节。
+    /* 消息头：发送端写的是一个int，占用4字节。表示接下数据的长度 */
     private final static int HEAD_LENGTH = 4;
 
+    /* 需要解码的信息的类型，因为从网络接收到的是字节序列，而这序列中没有表明类型，所以只能提前固定 */
     private Class clazz;
 
-    //需要解码的信息的类型，因为从网络接收到的是字节序列，而这序列中没有表明类型，所以只能提前固定
     public TrivialDecoder(Class clazz) {
         this.clazz = clazz;
     }
@@ -32,28 +32,28 @@ public class TrivialDecoder extends ByteToMessageDecoder {
     @Override
     protected void decode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) throws Exception {
 
-        //4字节的头部也没有，那么直接返回
+        /* 4字节的头部也没有，那么直接返回 */
         if (in.readableBytes() < HEAD_LENGTH) return;
 
-        // 标记一下当前的readIndex的位置
+        /* 标记一下当前的readIndex的位置 */
         in.markReaderIndex();
 
-        // 读取数据长度
+        /* 读取数据长度 */
         int dataLength = in.readInt();
 
-        // 我们读到的消息体长度为0，这是不应该出现的情况，这里出现这情况，关闭连接。
+        /* 我们读到的消息体长度为0，这是不应该出现的情况，这里出现这情况，关闭连接。 */
         if (dataLength < 0) {
             log.error("解码错误！消息体长度为："+dataLength+" 即将关闭连接！");
             ctx.close();
         }
 
-        //如果数据长度不足
+        /* 如果数据长度不足 */
         if (in.readableBytes() < dataLength) {
             in.resetReaderIndex();
             return;
         }
 
-        //将byte数据转化为我们需要的对象。
+        /* 将byte数据转化为我们需要的对象。 */
         if (clazz == ClientMessage.class) {
             try {
                 ClientMessage clientMessage = convertToClientMessage(in,dataLength);
@@ -77,7 +77,7 @@ public class TrivialDecoder extends ByteToMessageDecoder {
 
     }
 
-    //读出一个单位
+    /* 读出一条ServerMessage */
     private ServerMessage convertToServerMessage(ByteBuf in,int dataLength) {
         long rpcId = in.readLong();
         boolean isSucceed=true;
@@ -96,11 +96,12 @@ public class TrivialDecoder extends ByteToMessageDecoder {
          * 而ClientMessage中的参数类型是必要的，是方法签名的一部分
          */
         ServerMessage message = new ServerMessage(rpcId, isSucceed, new String(tmp));
+//        System.out.println("解码了一条ServerMessage：" + message);
         return message;
 
     }
 
-    //从中读出一个单位
+    /* 从中读出一条ClientMessage */
     private ClientMessage convertToClientMessage(ByteBuf in,int dataLenth) throws ClassNotFoundException {
         byte[] tmp = null;
 
@@ -130,6 +131,7 @@ public class TrivialDecoder extends ByteToMessageDecoder {
 //        ClientMessage message = new ClientMessage(className, methodName, args, argTypes);
         ClientMessage message = new ClientMessage(className, methodName, args, null);
         message.setRpcId(rpcId);
+//        System.out.println("解码了一条ClientMessage：" + message);
         return message;
 
     }

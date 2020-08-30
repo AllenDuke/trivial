@@ -1,5 +1,31 @@
 # trivial 1.4
-比起版本1.3，增加了注解@TrivialScan与@TrivialService的使用。
+比起版本1.3，增加了注解@TrivialScan与@TrivialService的使用，优化了异步调用机制。
+## 1.3异步调用机制
+使用的依然是park与unpark，但是，当考虑到这样的一些复杂情况时，是会出现问题的：
+1. caller按序发起了rpc1, rpc2，得到resultFuture1, resultFuture2。现在的情形为：rpc1已有结果（netty io线程调用了一次unpark），
+rpc2未有。而后，caller先调用resultFuture2.get()，caller本应阻塞的，但因为被unpark了一次，所以直接返回了，
+而后来再调用resultFuture1.get()的时候，却阻塞住了，直到rpc2有结果了（netty io线程再次调用unpark）。
+2. caller按序发起了rpc1, rpc2，得到resultFuture1, resultFuture2。现在的情形为：rpc1已有结果（netty io线程调用了一次unpark），
+rpc2已有结果（netty io线程调用了一次unpark），但是**unpark的资源值最多为1，不能叠加（操作系统互斥锁）**，
+当caller第二次调用resultFuture.get时，将永远阻塞。
+## 1.4异步调用机制
+想象一下这种情形：你要下楼拿外卖，如果外卖已经到了，那么你直接拿到了外卖就回去了，
+如果外卖还没到，那么你就在楼下等，外卖送到后就把你唤醒了，然后你再去拿外卖。
+
+使用的是synchronized与resultFuture.wait,resultFuture.notifyAll。这也保证不会lost-wake-up的。
+
+当caller在有效期内（默认5分钟），去调用resultFuture.get，如果已经有结果了，那么直接获取后返回。如果还没结果，那么
+```java
+synchroized(this){
+    this.wait(); 
+}
+``` 
+当netty io线程收到结果时，发现这是一个异步调用的结果，那么找出其对应的resultFuture
+```java
+synchroized(resultFuture){
+    resultFuture.notifyAll();
+}
+```
 ## 1.2通信协议
 消费者发送给生产者的信息由：4 Byte头部（记录接下来的数据长度）+ClientMessage（JSON字符串）。
 以

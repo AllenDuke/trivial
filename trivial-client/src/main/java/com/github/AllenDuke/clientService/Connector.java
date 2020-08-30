@@ -48,17 +48,19 @@ public class Connector {
      */
     private static final Map<String,RPCClientHandler> connectedChannelHandlerMap=new HashMap<>();
 
-    //RPCClientHandler空闲队列(空闲后与原连接断开，进入空闲队列) 并发容器防止并发构建连接
+    /* RPCClientHandler空闲队列(空闲后与原连接断开，进入空闲队列) 并发容器防止并发构建连接 */
     private static final ConcurrentLinkedQueue<ChannelPipeline> idlePipelineQueue = new ConcurrentLinkedQueue();
 
-    //注册中心
+    /* 注册中心 */
     private static final Registry registry = RPCClient.registry;
 
-    //记录某种服务调用超时的主机名单，用于下次调用时过滤
+    /* 记录某种服务调用超时的主机名单，用于下次调用时过滤 */
     private static final Map<String, Set<String>> timeOutMap = new HashMap<>();
 
-    //复用bootstrap，之前一个连接对应一个bootstrap和 一个nioeventloopgroup和一个nioeventloop，
-    //现在复用了线程，发挥了nio的优势，但并没有复用空闲的tcp的连接
+    /**
+     * 复用bootstrap，之前一个连接对应一个bootstrap和 一个nioeventloopgroup和一个nioeventloop，
+     *现在复用了线程，发挥了nio的优势，但并没有复用空闲的tcp的连接
+     */
     private static Bootstrap bootstrap;
     private static NioEventLoopGroup group;
     {
@@ -67,7 +69,7 @@ public class Connector {
             bootstrap = new Bootstrap();
             bootstrap.group(group)
                     .channel(NioSocketChannel.class)
-                    .option(ChannelOption.TCP_NODELAY, true)
+                    .option(ChannelOption.TCP_NODELAY, true) /* 开启nodelay，禁用nagle算法 */
                     .handler(
                             new ChannelInitializer<SocketChannel>() {
                                 @Override
@@ -75,7 +77,7 @@ public class Connector {
                                     ChannelPipeline pipeline = ch.pipeline();
                                     pipeline.addLast(new TrivialEncoder());
                                     pipeline.addLast(new TrivialDecoder(ServerMessage.class));
-                                    pipeline.addLast(new RPCClientHandler());//业务处理器
+                                    pipeline.addLast(new RPCClientHandler()); /* 业务处理器 */
                                 }
                             }
                     );
@@ -101,7 +103,7 @@ public class Connector {
     private void createAndConnectChannel(String serverAddr, String serviceName) {
         try {
             int splitIndex = serverAddr.indexOf(":");
-            String serverHost = serverAddr.substring(0, splitIndex);//去掉'/'
+            String serverHost = serverAddr.substring(0, splitIndex); /* 去掉'/' */
             int serverPort = Integer.valueOf(serverAddr.substring(splitIndex + 1, serverAddr.length()));
             /**
              * 细节优化
@@ -110,12 +112,13 @@ public class Connector {
              * synchronized保证可见性，进入前清空缓存，再从主存中读，在其内写入的数据对其他线程可见(写回主存，
              * 其他线程再从主存中读)，所以可用HashMap
              */
-            synchronized (this) {//connector只有一个
+            synchronized (this) { /* connector只有一个 */
                 if (connectedServiceHandlerMap.containsKey(serviceName)) {
                     log.info(serviceName + ",该服务的连接已由别的线程先创建，这里直接返回");
                     return;
                 }
-                if(connectedChannelHandlerMap.containsKey(serverAddr)){//对外表现为新建连接，其实复用了别的服务创建的连接
+                if(connectedChannelHandlerMap.containsKey(serverAddr)){
+                    /* 对外表现为新建连接，其实复用了别的服务创建的连接 */
                     log.info(serverAddr+",该远程主机的连接已由别的线程先创建，" +
                             "这里把clientHandler加到connectedServiceHandlerMap后直接返回");
                     connectedServiceHandlerMap.put(serviceName,connectedChannelHandlerMap.get(serverAddr));
@@ -123,8 +126,8 @@ public class Connector {
                 }
                 ChannelHandler handler =
                         bootstrap.connect(serverHost, serverPort).sync().channel().pipeline().lastContext().handler();
-                connectedServiceHandlerMap.put(serviceName, (RPCClientHandler) handler);//已建立该服务连接
-                connectedChannelHandlerMap.put(serverAddr, (RPCClientHandler) handler);//已建立该channel连接
+                connectedServiceHandlerMap.put(serviceName, (RPCClientHandler) handler); /* 已建立该服务连接 */
+                connectedChannelHandlerMap.put(serverAddr, (RPCClientHandler) handler); /* 已建立该channel连接 */
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -144,10 +147,12 @@ public class Connector {
         int splitIndex = serverAddr.indexOf(":");
         String serverHost = serverAddr.substring(0, splitIndex);
         int serverPort = Integer.valueOf(serverAddr.substring(splitIndex + 1, serverAddr.length()));
-        //断连后的pipeline会移除添加进去的HandlerContext
+
+        /* 断连后的pipeline会移除添加进去的HandlerContext */
         pipeline.addLast(new TrivialEncoder());
         pipeline.addLast(new TrivialDecoder(ServerMessage.class));
-        pipeline.addLast(new RPCClientHandler());//业务处理器
+        pipeline.addLast(new RPCClientHandler());
+
         InetSocketAddress address = new InetSocketAddress(serverHost, serverPort);
         log.info("即将利用旧的连接：" + pipeline.channel() + "，新的服务地址：" + address);
         pipeline.connect(address).addListener((future) -> {
@@ -167,8 +172,8 @@ public class Connector {
     private RPCClientHandler findClientHandler(String serviceName) {
         RPCClientHandler clientHandler = connectedServiceHandlerMap.get(serviceName);
 
-        if (clientHandler != null && clientHandler.getContext() != null) {//如果不是马上要断开的连接
-            //检查该生产者是否进入了该服务的黑名单，以免当前clientHandler在间隙之中进入了黑名单
+        if (clientHandler != null && clientHandler.getContext() != null) { /* 如果不是马上要断开的连接 */
+            /* 检查该生产者是否进入了该服务的黑名单，以免当前clientHandler在间隙之中进入了黑名单 */
             Set<String> blackList = timeOutMap.get(serviceName);
             if (blackList == null || blackList.size() == 0) return clientHandler;
             String remoteAddress = clientHandler.getContext().channel().remoteAddress().toString();
@@ -184,14 +189,14 @@ public class Connector {
             log.info("直连地址为："+serverAddr);
         }
 
-        //ChannelPipeline pipeline = idlePipelineQueue.poll();//防止并发构建连接
-        ChannelPipeline pipeline = null;//暂不知道如何重用
+        //ChannelPipeline pipeline = idlePipelineQueue.poll(); /* 防止并发构建连接 */
+        ChannelPipeline pipeline = null; /* todo 暂不知道如何重用 */
         if (pipeline != null) {
             connectChannel(pipeline, serverAddr);
-            while (!pipeline.channel().isActive()) ;//这里直接自旋等待，因为马上就连上了
+            while (!pipeline.channel().isActive()) ; /* 这里直接自旋等待，因为马上就连上了 */
             log.info("chanel：" + pipeline.channel() + "，成功连接上：" + pipeline.channel().remoteAddress());
             clientHandler = (RPCClientHandler) pipeline.lastContext().handler();
-            connectedServiceHandlerMap.put(serviceName, clientHandler);//已建立连接
+            connectedServiceHandlerMap.put(serviceName, clientHandler); /* 已建立连接 */
             return clientHandler;
         }
 
@@ -214,10 +219,10 @@ public class Connector {
             log.error("本次挑选的主机的服务："+clientMessage.getClassName()+"，已经降级，将不发起调用，直接返回null！");
             return null;
         }
-        clientHandler.sendMsg(clientMessage);//caller park
+        clientHandler.sendMsg(clientMessage); /* caller park ，被unpark往下获取结果*/
         long callerId=Thread.currentThread().getId();
         long rpcId=clientMessage.getRpcId();
-        Object result = clientHandler.getResult(rpcId);
+        Object result = clientHandler.getResultSyn(rpcId);
         /**
          * 理论上 result不可能为空
          */
@@ -225,7 +230,7 @@ public class Connector {
             throw new UnknownException("出现严重的未知错误，线程——"+callerId+" 第 "+rpcId
                     +" 次调用，unpark后获取到空的结果，有可能该调用结果被意外删除！！！");
 
-        return result;//unpark后获取结果
+        return result;
     }
 
     /**
@@ -241,8 +246,9 @@ public class Connector {
             log.error("本次挑选的主机的服务："+clientMessage.getClassName()+"，已经降级，将不发起调用，直接返回null！");
             return null;
         }
-        clientHandler.sendMsgAsy(clientMessage);
-        return new ResultFuture(clientHandler);
+        ResultFuture resultFuture = new ResultFuture(clientMessage.getRpcId(), clientHandler);
+        clientHandler.sendMsgAsy(clientMessage,resultFuture);
+        return resultFuture;
     }
 
     public static Map<String, RPCClientHandler> getConnectedServiceHandlerMap() {
@@ -261,7 +267,7 @@ public class Connector {
         return timeOutMap;
     }
 
-    //关闭所有netty线程
+    /* 关闭所有netty线程 */
     public void shutDown() {
         group.shutdownGracefully();
     }

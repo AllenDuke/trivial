@@ -6,7 +6,7 @@ client:
   retryNum: 0 #这里设置为0是为了体现出超时请求重路由的效果
   #workerSize: 1
 zookeeper:
-  host: 49.235.168.215
+  host: 192.168.1.53
   port: 2181
   seesionTimeOut: 2000
   consumeServiceNames: {Calculator} #用于向zookeeper中订阅，实际上用不到，因为当调用的时候是直接寻找server的，只用作统计

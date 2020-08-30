@@ -28,16 +28,16 @@ import java.util.concurrent.ThreadPoolExecutor;
 @Slf4j
 public class RPCServerHandler extends SimpleChannelInboundHandler {
 
-    //调用处理器，用来找到方法进行调用
+    /* 调用处理器，用来找到方法进行调用 */
     private static final InvokeHandler invokeHandler=new InvokeHandler();
 
-    //jdk业务线程池
+    /* jdk业务线程池 */
     private static final ThreadPoolExecutor executor=RPCServer.executor;
 
-    //自实现线程池
+    /* 自实现线程池 */
     private static final ThreadPoolService poolService=RPCServer.poolService;
 
-    //缓存一些错误调用信息，用来进行一些简单的防护
+    /* 缓存一些错误调用信息，用来进行一些简单的防护 */
     private static volatile LRU<String,InvokeErrorNode> lru;
 
     /**
@@ -96,29 +96,29 @@ public class RPCServerHandler extends SimpleChannelInboundHandler {
          */
         if(RPCServer.businessPoolModel>0){
             try{
-                if(RPCServer.businessPoolModel==1)//jdk线程池
+                if(RPCServer.businessPoolModel==1) /* jdk线程池 */
                     executor.execute(new InvokeTask(clientMessage,invokeHandler,ctx));
-                if(RPCServer.businessPoolModel==2)//自实现线程池
+                if(RPCServer.businessPoolModel==2) /* 自实现线程池 */
                     poolService.execute(new InvokeTask(clientMessage,invokeHandler,ctx));
             }catch (Exception e){
                 log.error("线程池拒绝任务，即将通知客户端",e);
                 ServerMessage serverMessage=new ServerMessage(clientMessage.getRpcId(),false,"服务器繁忙！");
                 ctx.writeAndFlush(serverMessage);
-                recordInvokeException(ctx,e);//记录异常调用
+                recordInvokeException(ctx,e); /* 记录异常调用 */
             }finally {
                 return;
             }
         }
 
-        Object result;//调用结果
+        Object result; /* 调用结果 */
 
         try {
-            result= invokeHandler.handle(clientMessage);//由netty io线程直接调用
+            result= invokeHandler.handle(clientMessage); /* 由netty io线程直接调用 */
         }catch (Exception e){
             log.error("实现方法调用异常，放弃本次调用服务，即将通知本次调用者",e);
             ServerMessage serverMessage=new ServerMessage(clientMessage.getRpcId(),false,"实现方法调用异常");
             ctx.writeAndFlush(serverMessage);
-            recordInvokeException(ctx,e);//记录异常调用
+            recordInvokeException(ctx,e); /* 记录异常调用 */
             return;
         }
 
@@ -142,7 +142,7 @@ public class RPCServerHandler extends SimpleChannelInboundHandler {
      * @date: 2020/4/5
      */
     public static void recordInvokeException(ChannelHandlerContext ctx, Throwable cause){
-        if(lru==null){//volatile double-check防止指令重排序拿到半初始化对象
+        if(lru==null){ /* volatile double-check防止指令重排序拿到半初始化对象 */
             synchronized (invokeHandler){
                 if(lru==null) lru=new LRU<>();
             }

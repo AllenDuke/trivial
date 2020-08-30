@@ -20,16 +20,16 @@ import java.util.Map;
  */
 public class InvokeHandler {
 
-    //实现类所在的包名，可把类都先加载到一个HashMap中
+    /* 实现类所在的包名，可把类都先加载到一个HashMap中 */
     private static String packageName = RPCServer.packageName + ".";
 
-    //key为实现类的全限定名
+    /* key为实现类的全限定名 */
     private static final Map<String, Class> classMap = new HashMap<>();
 
-    //key为实现方法的全限定名
+    /* key为实现方法的全限定名 */
     private static final Map<String, Method> methodMap = new HashMap<>();
 
-    //key为实现类名，value为实现类的实例
+    /* key为实现类名，value为实现类的实例，用于反射调用 */
     private static final Map<String, Object> serviceObjects = new HashMap<>();
 
     /**
@@ -45,7 +45,7 @@ public class InvokeHandler {
          * 并发时可能会进行多次put操作，但问题不大，put的是同一个Class对象。
          */
         if (serviceImpl == null) {
-            serviceImpl = Class.forName(className);//找不到将抛异常
+            serviceImpl = Class.forName(className); /* 找不到将抛异常 */
         }
         classMap.put(className, serviceImpl);
         return serviceImpl;
@@ -62,7 +62,7 @@ public class InvokeHandler {
      * @date: 2020/3/1
      */
     public Method findMethod(Class serviceImpl, String methodName, Object[] args, String argTypes) {
-        Method method = methodMap.get(serviceImpl.getName() + "." + methodName + argTypes);//先在缓存中寻找
+        Method method = methodMap.get(serviceImpl.getName() + "." + methodName + argTypes); /* 先在缓存中寻找 */
         if (method == null)
             for (Method method1 : serviceImpl.getMethods()) {
                 /**
@@ -157,7 +157,7 @@ public class InvokeHandler {
      */
     public Object handle(ClientMessage clientMessage) throws ClassNotFoundException, IllegalAccessException,
             InvocationTargetException, InstantiationException, MethodNotFoundException {
-        String className = packageName + clientMessage.getClassName();//拼接出全限定名
+        String className = packageName + clientMessage.getClassName(); /* 拼接出全限定名 */
         Object[] args = clientMessage.getArgs();
         String methodName = clientMessage.getMethodName();
         Class serviceImpl = findClass(className);

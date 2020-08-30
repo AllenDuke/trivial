@@ -6,7 +6,7 @@ server:
   allIdleTime: 3000
   enableSpring: 0 #是否将环境置于spring中，默认0为否，1为是
 zookeeper:
-  host: 49.235.168.215
+  host: 192.168.1.53
   port: 2181
   seesionTimeOut: 2000
 
