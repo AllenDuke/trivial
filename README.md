@@ -17,6 +17,7 @@ rpc2已有结果（netty io线程调用了一次unpark），但是**unpark的资
 当caller在有效期内（默认5分钟），去调用resultFuture.get，如果已经有结果了，那么直接获取后返回。如果还没结果，那么
 ```java
 synchroized(this){
+    //todo 将wait置于while中
     this.wait(); 
 }
 ``` 

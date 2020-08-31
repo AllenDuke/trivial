@@ -64,6 +64,7 @@ public class ResultFuture<V> implements Future<V> {
 
         /* 还没有结果，继续等待，不会lost-wake-up */
         synchronized (this){
+            //todo 将wait置于while中
             this.wait(); /* 这里释放了锁，等待netty io线程收到结果后调用resultFuture.notifyAll()后，返回，然后去获取结果。 */
         }
 
