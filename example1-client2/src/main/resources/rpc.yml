@@ -5,7 +5,8 @@ client:
   timeout: 2000
   retryNum: 2
 zookeeper:
-  host: 192.168.1.53
+  host: 47.107.183.31
   port: 2181
   seesionTimeOut: 2000
   serviceNames: {HelloService}
+

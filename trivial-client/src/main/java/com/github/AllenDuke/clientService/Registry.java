@@ -1,5 +1,6 @@
 package com.github.AllenDuke.clientService;
 
+import com.github.AllenDuke.constant.LOG;
 import com.github.AllenDuke.exception.ServiceNotFoundException;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.zookeeper.ZooKeeper;
@@ -38,7 +39,7 @@ public class Registry {
             try {
                 children= zooKeeper.getChildren("/trivial/" + serviceName + "/providers", null);
             } catch (Exception e) {
-                log.error(e.getMessage());
+                if(RPCClient.LOG_LEVEL<= LOG.LOG_ERROR) log.error(e.getMessage());
             }
         }
         return selectServer(children,serviceName);
@@ -88,7 +89,7 @@ public class Registry {
      */
     private String selectServer(List<String> children,String serviceName){
         if(children==null||children.size()==0) {
-            log.error("找不到服务",new ServiceNotFoundException("找不到服务："+serviceName));
+            if(RPCClient.LOG_LEVEL<= LOG.LOG_ERROR) log.error("找不到服务",new ServiceNotFoundException("找不到服务："+serviceName));
             return null;
         }
         addrMem.put(serviceName,children); /* 更新本地存根（过滤黑名单） */
@@ -113,7 +114,7 @@ public class Registry {
             try {
                 data = zooKeeper.getData("/trivial/" + serviceName + "/providers/" + addr, null, stat);
             } catch (Exception e) {
-                log.error(e.getMessage());
+                if(RPCClient.LOG_LEVEL<= LOG.LOG_ERROR) log.error(e.getMessage());
                 /* 因为有可能zookeeper已经宕机，所以直接返回addr */
                 return addr;
             }

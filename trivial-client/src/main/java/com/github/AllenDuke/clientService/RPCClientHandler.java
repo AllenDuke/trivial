@@ -1,5 +1,6 @@
 package com.github.AllenDuke.clientService;
 
+import com.github.AllenDuke.constant.LOG;
 import com.github.AllenDuke.dto.ClientMessage;
 import com.github.AllenDuke.dto.ServerMessage;
 import com.github.AllenDuke.event.TimeOutEvent;
@@ -64,7 +65,7 @@ public class RPCClientHandler extends SimpleChannelInboundHandler {
     //与服务器的连接创建后，就会被调用, 这个方法是第一个被调用
     @Override
     public void channelActive(ChannelHandlerContext ctx) throws Exception {
-        log.info(ctx.channel()+" 已连接");
+        if(RPCClient.LOG_LEVEL<= LOG.LOG_INFO) log.info(ctx.channel()+" 已连接");
         this.context=ctx;
         //设置消息高水位，防止发送队列积压而OOM
         ctx.channel().config().setWriteBufferHighWaterMark(RPCClient.writeBufferHighWaterMark);
@@ -82,7 +83,7 @@ public class RPCClientHandler extends SimpleChannelInboundHandler {
      */
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, Object msg) throws Exception {
-        log.info("收到信息："+msg+"，准备解码，返回结果");
+        if(RPCClient.LOG_LEVEL<= LOG.LOG_INFO) log.info("收到信息："+msg+"，准备解码，返回结果");
         ServerMessage serverMessage= (ServerMessage) msg;
         long rpcId=serverMessage.getRpcId();
         Object result=serverMessage.getReselut();
@@ -104,20 +105,23 @@ public class RPCClientHandler extends SimpleChannelInboundHandler {
             }
 
             long callerId=caller.getId();
-            if(serverMessage.isSucceed()) log.info("收到发送给线程——"+callerId+" 的成功信息，即将返回结果");
-            else log.error("线程——"+callerId+" 第 "+rpcId+" 次调用失败，" +serverMessage.getReselut()+" 即将返回错误提示");
+            if(serverMessage.isSucceed()) {
+                if(RPCClient.LOG_LEVEL<= LOG.LOG_INFO) log.info("收到发送给线程——"+callerId+" 的成功信息，即将返回结果");
+            } else {
+                if(RPCClient.LOG_LEVEL<= LOG.LOG_ERROR) log.error("线程——"+callerId+" 第 "+rpcId+" 次调用失败，" +serverMessage.getReselut()+" 即将返回错误提示");
+            }
 
             waiterMap.remove(rpcId);
             LockSupport.unpark(caller);
             return;
         }
 
-        log.error("接收到一个超时的调用结果，该调用为———"+rpcId+"，即将抛弃！");
+        if(RPCClient.LOG_LEVEL<= LOG.LOG_ERROR) log.error("接收到一个超时的调用结果，该调用为———"+rpcId+"，即将抛弃！");
     }
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
-        log.error("捕获到异常，即将关闭连接！",cause);
+        if(RPCClient.LOG_LEVEL<= LOG.LOG_ERROR) log.error("捕获到异常，即将关闭连接！",cause);
         ctx.close();
     }
 
@@ -132,7 +136,7 @@ public class RPCClientHandler extends SimpleChannelInboundHandler {
      */
     @Override
     public void channelInactive(ChannelHandlerContext ctx) throws Exception {
-        log.error(ctx.channel()+" 连接已断开，即将加入空闲连接池");
+        if(RPCClient.LOG_LEVEL<= LOG.LOG_ERROR) log.error(ctx.channel()+" 连接已断开，即将加入空闲连接池");
         Connector.getConnectedChannelHandlerMap().remove(ctx.channel().remoteAddress().toString().substring(1));
         Connector.getIdlePipelineQueue().add(this.getContext().pipeline());
         /**
@@ -170,7 +174,9 @@ public class RPCClientHandler extends SimpleChannelInboundHandler {
         send(clientMessage,false);
         Thread currentThread = Thread.currentThread();
         boolean interrupted = currentThread.isInterrupted();
-        if(interrupted) log.error("线程"+currentThread.getId()+" 已被设置中断，park即将失效！");
+        if(interrupted) {
+            if(RPCClient.LOG_LEVEL<= LOG.LOG_ERROR) log.error("线程"+currentThread.getId()+" 已被设置中断，park即将失效！");
+        }
         /**
          * park可能会毫无理由地返回，caller在getResult的时候要确认已有结果
          * todo 不完全确定真的是这个原因
@@ -225,8 +231,11 @@ public class RPCClientHandler extends SimpleChannelInboundHandler {
         context.writeAndFlush(clientMessage);//加到任务队列，netty线程发送json文本
 
         long callerId=Thread.currentThread().getId();
-        if(!isAsy) log.info("线程——"+callerId+"，要同步发送信息"+clientMessage);
-        else log.info("线程——"+callerId+"，要异步发送信息"+clientMessage);
+        if(!isAsy) {
+            if(RPCClient.LOG_LEVEL<= LOG.LOG_INFO) log.info("线程——"+callerId+"，要同步发送信息"+clientMessage);
+        } else {
+            if(RPCClient.LOG_LEVEL<= LOG.LOG_INFO) log.info("线程——"+callerId+"，要异步发送信息"+clientMessage);
+        }
     }
 
     /**
@@ -274,7 +283,7 @@ public class RPCClientHandler extends SimpleChannelInboundHandler {
                     e.printStackTrace();
                 }
             }
-            log.info("超时观察者退出");
+            if(RPCClient.LOG_LEVEL<= LOG.LOG_INFO) log.info("超时观察者退出");
         }
     }
 
@@ -289,7 +298,7 @@ public class RPCClientHandler extends SimpleChannelInboundHandler {
     public Object getResultSyn(long rpcId){
         long callerId=Thread.currentThread().getId();
         while (!resultMap.containsKey(rpcId)){
-            log.error("当前resultMap中没有线程——"+callerId+" 第 "+rpcId+" 次调用的结果，可能该线程park失败，或者被意外唤醒，继续park!");
+            if(RPCClient.LOG_LEVEL<= LOG.LOG_ERROR) log.error("当前resultMap中没有线程——"+callerId+" 第 "+rpcId+" 次调用的结果，可能该线程park失败，或者被意外唤醒，继续park!");
             /**
              * park有可能毫无逻辑地返回
              */
@@ -302,7 +311,7 @@ public class RPCClientHandler extends SimpleChannelInboundHandler {
          * 理论上，result不会是null的。
          */
         if(result==null){
-            log.error("当前resultMap中，线程——"+callerId+" 的结果为null，即将返回null ！");
+            if(RPCClient.LOG_LEVEL<= LOG.LOG_ERROR) log.error("当前resultMap中，线程——"+callerId+" 的结果为null，即将返回null ！");
             return null;
         }
 

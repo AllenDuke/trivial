@@ -4,6 +4,7 @@ import com.github.AllenDuke.clientService.Connector;
 import com.github.AllenDuke.clientService.RPCClient;
 import com.github.AllenDuke.clientService.RPCClientHandler;
 import com.github.AllenDuke.clientService.TimeOutResult;
+import com.github.AllenDuke.constant.LOG;
 import com.github.AllenDuke.dto.ClientMessage;
 import com.github.AllenDuke.event.TimeOutEvent;
 import com.github.AllenDuke.exception.InvokeTimeOutException;
@@ -48,7 +49,7 @@ public class DefaultTimeOutListener implements TimeOutListener {
         if(context!=null&&retryNum>0){
             retryNum--;
             event.setRetryNum(retryNum);
-            log.error("线程——"+callerId+" 第 "+rpcId +" 次调用超时，即将进行第 "
+            if(RPCClient.LOG_LEVEL<= LOG.LOG_ERROR) log.error("线程——"+callerId+" 第 "+rpcId +" 次调用超时，即将进行第 "
                     +(RPCClient.retryNum-retryNum)+" 次重试");
             context.writeAndFlush(clientMessage);//向原机重发信息
             return;
@@ -71,15 +72,15 @@ public class DefaultTimeOutListener implements TimeOutListener {
         if(context!=null){
             String remoteAddress = context.channel().remoteAddress().toString();
             blackList.add(remoteAddress.substring(1));//去掉'/'
-            log.error("生产者："+remoteAddress+" 进入服务："+clientMessage.getClassName()+" 的黑名单");
+            if(RPCClient.LOG_LEVEL<= LOG.LOG_ERROR) log.error("生产者："+remoteAddress+" 进入服务："+clientMessage.getClassName()+" 的黑名单");
             Connector.getConnectedServiceHandlerMap().
                     remove(clientMessage.getClassName());//有可能有人同时在拿去这个clientHandler，不过问题不大，可以接收
-            log.error("服务："+clientMessage.getClassName()+" 超时假断连，不让新的线程使用该生产者提供的该服务");
+            if(RPCClient.LOG_LEVEL<= LOG.LOG_ERROR) log.error("服务："+clientMessage.getClassName()+" 超时假断连，不让新的线程使用该生产者提供的该服务");
         }
         if(context==null) log.error("连接已经被远程服务端断开！");
         Map<Long,Object> resultMap=clientHandler.getResultMap();
         resultMap.put(rpcId,timeOutResult);
-        log.error("线程——"+callerId+" 第 "+rpcId
+        if(RPCClient.LOG_LEVEL<= LOG.LOG_ERROR) log.error("线程——"+callerId+" 第 "+rpcId
                 +"次调用超时，已重试 "+RPCClient.retryNum
                 +" 次，即将返回超时提示",new InvokeTimeOutException("调用超时"));
         LockSupport.unpark(waiterMap.get(rpcId));

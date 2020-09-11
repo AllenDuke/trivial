@@ -5,6 +5,7 @@ import com.github.AllenDuke.business.InvokeErrorNode;
 import com.github.AllenDuke.business.InvokeHandler;
 import com.github.AllenDuke.business.InvokeTask;
 import com.github.AllenDuke.business.LRU;
+import com.github.AllenDuke.constant.LOG;
 import com.github.AllenDuke.dto.ClientMessage;
 import com.github.AllenDuke.dto.ServerMessage;
 import com.github.AllenDuke.exception.ConnectionIdleException;
@@ -51,7 +52,7 @@ public class RPCServerHandler extends SimpleChannelInboundHandler {
     public void channelActive(ChannelHandlerContext ctx) throws Exception {
         SocketAddress remoteAddress = ctx.channel().remoteAddress();
         String addr=remoteAddress.toString();
-        log.info(addr+" 正在尝试连接...");
+        if(RPCServer.LOG_LEVEL<= LOG.LOG_INFO) log.info(addr+" 正在尝试连接...");
         if(lru!=null){
             addr=addr.substring(1,addr.indexOf(":"));
             InvokeErrorNode errorNode = lru.get(addr);
@@ -68,7 +69,7 @@ public class RPCServerHandler extends SimpleChannelInboundHandler {
             ctx.close();
             return;
         }
-        log.info(remoteAddress.toString() + " 成功连接");
+        if(RPCServer.LOG_LEVEL<= LOG.LOG_INFO) log.info(remoteAddress.toString() + " 成功连接");
         super.channelActive(ctx);
     }
 
@@ -83,7 +84,7 @@ public class RPCServerHandler extends SimpleChannelInboundHandler {
      */
     @Override
     public void channelRead0(ChannelHandlerContext ctx, Object msg) throws Exception {
-        log.info("收到信息：" + msg + "，准备解码，调用服务");
+        if(RPCServer.LOG_LEVEL<= LOG.LOG_INFO) log.info("收到信息：" + msg + "，准备解码，调用服务");
         ClientMessage clientMessage= (ClientMessage) msg;
 
         /**
@@ -101,7 +102,7 @@ public class RPCServerHandler extends SimpleChannelInboundHandler {
                 if(RPCServer.businessPoolModel==2) /* 自实现线程池 */
                     poolService.execute(new InvokeTask(clientMessage,invokeHandler,ctx));
             }catch (Exception e){
-                log.error("线程池拒绝任务，即将通知客户端",e);
+                if(RPCServer.LOG_LEVEL<= LOG.LOG_ERROR) log.error("线程池拒绝任务，即将通知客户端",e);
                 ServerMessage serverMessage=new ServerMessage(clientMessage.getRpcId(),false,"服务器繁忙！");
                 ctx.writeAndFlush(serverMessage);
                 recordInvokeException(ctx,e); /* 记录异常调用 */
@@ -115,7 +116,7 @@ public class RPCServerHandler extends SimpleChannelInboundHandler {
         try {
             result= invokeHandler.handle(clientMessage); /* 由netty io线程直接调用 */
         }catch (Exception e){
-            log.error("实现方法调用异常，放弃本次调用服务，即将通知本次调用者",e);
+            if(RPCServer.LOG_LEVEL<= LOG.LOG_ERROR) log.error("实现方法调用异常，放弃本次调用服务，即将通知本次调用者",e);
             ServerMessage serverMessage=new ServerMessage(clientMessage.getRpcId(),false,"实现方法调用异常");
             ctx.writeAndFlush(serverMessage);
             recordInvokeException(ctx,e); /* 记录异常调用 */
@@ -123,13 +124,13 @@ public class RPCServerHandler extends SimpleChannelInboundHandler {
         }
 
         ServerMessage serverMessage=new ServerMessage(clientMessage.getRpcId(),true,result);
-        log.info("实现方法调用成功，即将返回信息："+serverMessage);
+        if(RPCServer.LOG_LEVEL<= LOG.LOG_INFO) log.info("实现方法调用成功，即将返回信息："+serverMessage);
         ctx.writeAndFlush(serverMessage);
     }
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
-        log.error("捕获到异常，即将关闭连接！",cause);
+        if(RPCServer.LOG_LEVEL<= LOG.LOG_ERROR) log.error("捕获到异常，即将关闭连接！",cause);
         super.exceptionCaught(ctx,cause);
     }
 
@@ -173,7 +174,7 @@ public class RPCServerHandler extends SimpleChannelInboundHandler {
          * 当同一批同时达到时，将触发多次，但并无实际影响，close方法可以调用多次而只生效一次
          */
         if(errorNode.getErrCount()>=100) {
-            log.error("该远程客户端一天内调用错误次数达到100次，认为已受到了该客户端的攻击，" +
+            if(RPCServer.LOG_LEVEL<= LOG.LOG_ERROR) log.error("该远程客户端一天内调用错误次数达到100次，认为已受到了该客户端的攻击，" +
                     "24小时内不允许再次连接，将告知客户端并断开连接",cause);
             ctx.close();
         }
@@ -196,7 +197,8 @@ public class RPCServerHandler extends SimpleChannelInboundHandler {
                     eventType = "读写空闲";
                     break;
             }
-            log.error("channel: "+ctx.channel()+eventType, new ConnectionIdleException("发生连接空闲，即将断开"));
+            if(RPCServer.LOG_LEVEL<= LOG.LOG_ERROR) log.error("channel: "+ctx.channel()+eventType, new ConnectionIdleException("发生连接空闲，即将断开"));
+//            ctx.writeAndFlush("HEARTBEAT").addListener(ChannelFutureListener.CLOSE_ON_FAILURE); /* 发送心跳包，检测对方状态 */
             ctx.channel().close();
         }
     }

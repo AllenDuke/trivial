@@ -1,8 +1,11 @@
 package com.github.AllenDuke.clientService;
 
-import java.util.*;
+import java.util.Collection;
+import java.util.Deque;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.LinkedBlockingDeque;
+import java.util.concurrent.ConcurrentLinkedDeque;
 
 /**
  * @author 杜科
@@ -27,7 +30,7 @@ public class ResultMap<K,V> implements Map<K,V> {
     //当超过这个时限（5分钟），还有元素没有被获取时，那么这些元素将被删除
     private static long timeOut=5*60*1000;//ms
 
-    private Deque<K> queue=new LinkedBlockingDeque<>();
+    private Deque<K> queue=new ConcurrentLinkedDeque<>();
 
     private Map<K,Node> map=new ConcurrentHashMap<>();
 
@@ -40,6 +43,7 @@ public class ResultMap<K,V> implements Map<K,V> {
      * @date: 2020/8/7
      */
     private void clearTimeOut(){
+        if(queue.size()==0) return;
         K k = queue.pollFirst();
         Node node = map.get(k);
         if(node==null) return;

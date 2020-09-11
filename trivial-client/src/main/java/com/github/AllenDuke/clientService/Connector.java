@@ -1,5 +1,6 @@
 package com.github.AllenDuke.clientService;
 
+import com.github.AllenDuke.constant.LOG;
 import com.github.AllenDuke.dto.ClientMessage;
 import com.github.AllenDuke.dto.ServerMessage;
 import com.github.AllenDuke.exception.UnknownException;
@@ -114,12 +115,12 @@ public class Connector {
              */
             synchronized (this) { /* connector只有一个 */
                 if (connectedServiceHandlerMap.containsKey(serviceName)) {
-                    log.info(serviceName + ",该服务的连接已由别的线程先创建，这里直接返回");
+                    if(RPCClient.LOG_LEVEL<= LOG.LOG_INFO) log.info(serviceName + ",该服务的连接已由别的线程先创建，这里直接返回");
                     return;
                 }
                 if(connectedChannelHandlerMap.containsKey(serverAddr)){
                     /* 对外表现为新建连接，其实复用了别的服务创建的连接 */
-                    log.info(serverAddr+",该远程主机的连接已由别的线程先创建，" +
+                    if(RPCClient.LOG_LEVEL<= LOG.LOG_INFO) log.info(serverAddr+",该远程主机的连接已由别的线程先创建，" +
                             "这里把clientHandler加到connectedServiceHandlerMap后直接返回");
                     connectedServiceHandlerMap.put(serviceName,connectedChannelHandlerMap.get(serverAddr));
                     return;
@@ -154,7 +155,7 @@ public class Connector {
         pipeline.addLast(new RPCClientHandler());
 
         InetSocketAddress address = new InetSocketAddress(serverHost, serverPort);
-        log.info("即将利用旧的连接：" + pipeline.channel() + "，新的服务地址：" + address);
+        if(RPCClient.LOG_LEVEL<= LOG.LOG_INFO) log.info("即将利用旧的连接：" + pipeline.channel() + "，新的服务地址：" + address);
         pipeline.connect(address).addListener((future) -> {
             System.out.println(future.get());
         });
@@ -179,14 +180,14 @@ public class Connector {
             String remoteAddress = clientHandler.getContext().channel().remoteAddress().toString();
             remoteAddress = remoteAddress.substring(1);//去掉'/'
             if (!blackList.contains(remoteAddress)) return clientHandler;
-            log.error("生产者：" + remoteAddress + "，已进入服务：" + serviceName + " 的黑名单");
+            if(RPCClient.LOG_LEVEL<= LOG.LOG_ERROR) log.error("生产者：" + remoteAddress + "，已进入服务：" + serviceName + " 的黑名单");
         }
 
         String serverAddr = registry.findServer(serviceName, timeOutMap.get(serviceName));
         if(serverAddr==null){
-            log.info("本次挑选的主机的服务："+serviceName+"，已经降级！尝试直连...");
+            if(RPCClient.LOG_LEVEL<= LOG.LOG_INFO) log.info("本次挑选的主机的服务："+serviceName+"，已经降级！尝试直连...");
             serverAddr=RPCClient.serverHost+":"+RPCClient.serverPort;
-            log.info("直连地址为："+serverAddr);
+            if(RPCClient.LOG_LEVEL<= LOG.LOG_INFO) log.info("直连地址为："+serverAddr);
         }
 
         //ChannelPipeline pipeline = idlePipelineQueue.poll(); /* 防止并发构建连接 */
@@ -194,7 +195,7 @@ public class Connector {
         if (pipeline != null) {
             connectChannel(pipeline, serverAddr);
             while (!pipeline.channel().isActive()) ; /* 这里直接自旋等待，因为马上就连上了 */
-            log.info("chanel：" + pipeline.channel() + "，成功连接上：" + pipeline.channel().remoteAddress());
+            if(RPCClient.LOG_LEVEL<= LOG.LOG_INFO) log.info("chanel：" + pipeline.channel() + "，成功连接上：" + pipeline.channel().remoteAddress());
             clientHandler = (RPCClientHandler) pipeline.lastContext().handler();
             connectedServiceHandlerMap.put(serviceName, clientHandler); /* 已建立连接 */
             return clientHandler;
@@ -216,7 +217,7 @@ public class Connector {
     public Object invoke(ClientMessage clientMessage){
         RPCClientHandler clientHandler = findClientHandler(clientMessage.getClassName());
         if(clientHandler==null){
-            log.error("本次挑选的主机的服务："+clientMessage.getClassName()+"，已经降级，将不发起调用，直接返回null！");
+            if(RPCClient.LOG_LEVEL<= LOG.LOG_ERROR) log.error("本次挑选的主机的服务："+clientMessage.getClassName()+"，已经降级，将不发起调用，直接返回null！");
             return null;
         }
         clientHandler.sendMsg(clientMessage); /* caller park ，被unpark往下获取结果*/
@@ -243,7 +244,7 @@ public class Connector {
     public ResultFuture invokeAsy(ClientMessage clientMessage){
         RPCClientHandler clientHandler = findClientHandler(clientMessage.getClassName());
         if(clientHandler==null){
-            log.error("本次挑选的主机的服务："+clientMessage.getClassName()+"，已经降级，将不发起调用，直接返回null！");
+            if(RPCClient.LOG_LEVEL<= LOG.LOG_ERROR) log.error("本次挑选的主机的服务："+clientMessage.getClassName()+"，已经降级，将不发起调用，直接返回null！");
             return null;
         }
         ResultFuture resultFuture = new ResultFuture(clientMessage.getRpcId(), clientHandler);

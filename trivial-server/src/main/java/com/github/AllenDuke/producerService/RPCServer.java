@@ -3,6 +3,7 @@ package com.github.AllenDuke.producerService;
 
 import com.github.AllenDuke.annotation.TrivialScan;
 import com.github.AllenDuke.annotation.TrivialService;
+import com.github.AllenDuke.constant.LOG;
 import com.github.AllenDuke.dto.ClientMessage;
 import com.github.AllenDuke.exception.ArgNotFoundExecption;
 import com.github.AllenDuke.exception.RegistrationFailException;
@@ -87,6 +88,10 @@ public class RPCServer {
     /* 是否启用Spring，取决于用户要暴露的服务是否存在于Spring环境中 */
     public static int enableSpring;
 
+    /* 默认日志的等级为debug */
+    public static int LOG_LEVEL= LOG.LOG_DEBUG; /* todo 添加volatile修饰 */
+
+    /* 扫描项目中的类 仅作扫描使用，不进行加载 */
     public static TrivialClassLoader classLoader;
 
     /* 配置jdk线程池，启动服务端 */
@@ -162,6 +167,25 @@ public class RPCServer {
         if (map.containsKey("allIdleTime")) allIdleTime = (int) map.get("allIdleTime");
         if (map.containsKey("enableSpring")) enableSpring = (int) map.get("enableSpring");
         if (enableSpring == 1) initSpring();
+        if(map.containsKey("logLevel")) {
+            String s=(String) map.get("logLevel");
+            switch (s){
+                case "debug":
+                    LOG_LEVEL=LOG.LOG_DEBUG;
+                    break;
+                case "info":
+                    LOG_LEVEL=LOG.LOG_INFO;
+                    break;
+                case "warning":
+                    LOG_LEVEL=LOG.LOG_WARNING;
+                    break;
+                case "error":
+                    LOG_LEVEL=LOG.LOG_ERROR;
+                    break;
+                default:
+                    throw new ArgNotFoundExecption("logLevel的值只能是{debug, info, warning, error}其中之一");
+            }
+        }
     }
 
     /* 初始化spring环境 */
@@ -218,10 +242,10 @@ public class RPCServer {
                                 (version + "," + open).getBytes(CharsetUtil.UTF_8),
                                 ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.EPHEMERAL);
                     }
-                    log.info("成功注册到zookeeper");
+                    if(RPCServer.LOG_LEVEL<= LOG.LOG_INFO) log.info("成功注册到zookeeper");
                 } else log.error("注册失败", new RegistrationFailException("注册失败"));
             } catch (Exception e) {
-                log.error("节点异常", e);
+                if(RPCServer.LOG_LEVEL<= LOG.LOG_ERROR) log.error("节点异常", e);
             }
 
         });
@@ -268,7 +292,7 @@ public class RPCServer {
                             }
                     );
             ChannelFuture channelFuture = serverBootstrap.bind(host, port).sync();
-            log.info("server is ready! ");
+            if(RPCServer.LOG_LEVEL<= LOG.LOG_INFO) log.info("server is ready! ");
             channelFuture.channel().closeFuture().sync(); /* 同步方法，直到有结果才往下执行 */
         } catch (Exception e) {
             e.printStackTrace();

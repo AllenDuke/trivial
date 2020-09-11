@@ -2,6 +2,7 @@ package com.github.AllenDuke.clientService;
 
 
 import com.alibaba.fastjson.JSON;
+import com.github.AllenDuke.constant.LOG;
 import com.github.AllenDuke.dto.ClientMessage;
 import com.github.AllenDuke.event.TimeOutEvent;
 import com.github.AllenDuke.exception.*;
@@ -84,6 +85,9 @@ public class RPCClient {
     //消息发送队列高水位
     protected static int writeBufferHighWaterMark = 10 * 1024 * 1024;
 
+    /* 默认日志的等级为debug */
+    public static int LOG_LEVEL= LOG.LOG_DEBUG; /* todo 添加volatile修饰 */
+
     /**
      * @param timeOutListener 超时监听器
      * @description: 注册超时监听器，当发生超时时，将调用监听器里的相关方法
@@ -127,8 +131,26 @@ public class RPCClient {
         if (map.containsKey("retryNum")) retryNum = (int) map.get("retryNum");
         if (map.containsKey("workerSize")) workerSize = (int) map.get("workerSize");
         if (map.containsKey("isAsy") && (int) map.get("isAsy") == 1) isAsy = true;
-        if (map.containsKey("writeBufferHighWaterMark"))
-            writeBufferHighWaterMark = (int) map.get("writeBufferHighWaterMark");
+        if (map.containsKey("writeBufferHighWaterMark")) writeBufferHighWaterMark = (int) map.get("writeBufferHighWaterMark");
+        if(map.containsKey("logLevel")) {
+            String s=(String) map.get("logLevel");
+            switch (s){
+                case "debug":
+                    LOG_LEVEL=LOG.LOG_DEBUG;
+                    break;
+                case "info":
+                    LOG_LEVEL=LOG.LOG_INFO;
+                    break;
+                case "warning":
+                    LOG_LEVEL=LOG.LOG_WARNING;
+                    break;
+                case "error":
+                    LOG_LEVEL=LOG.LOG_ERROR;
+                    break;
+                default:
+                    throw new ArgNotFoundExecption("logLevel的值只能是{debug, info, warning, error}其中之一");
+            }
+        }
         connector = new Connector();
     }
 
@@ -223,7 +245,6 @@ public class RPCClient {
 //                                    if(result.getClass()!=Void.Type()) throw new RuntimeException("调用异常");
 //                                    return null;
                                 }
-
 
                                 /**
                                  * 调用结果或者超时结果，其中调用结果可能成功，可能失败，若失败，结果为失败提示字符串
